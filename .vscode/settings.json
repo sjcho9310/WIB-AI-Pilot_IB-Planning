@@ -1,0 +1,30 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/streamlit-app/.venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/streamlit-app"],
+
+  "terminal.integrated.defaultProfile.linux": "bash (venv)",
+  "terminal.integrated.profiles.linux": {
+    "bash (venv)": {
+      "path": "bash",
+      "args": ["--init-file", "${workspaceFolder}/.vscode/init.sh"],
+      "icon": "terminal-bash"
+    },
+    "bash": {
+      "path": "bash"
+    }
+  },
+
+  "[python]": {
+    "editor.formatOnSave": false
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  }
+}

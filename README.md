@@ -1,91 +1,57 @@
-# my_app
+# AI-Pilot 교육용 PoC 환경
 
-iOS / Android Flutter 앱 — 1인 개발 / 최대 1만 MAU 규모를 가정한 스타터.
+Claude Code를 활용한 개발 PoC 교육을 위한 Streamlit + React 워크스페이스입니다.
 
-## 스택
-
-- **Flutter** 3.13.x (Nix `pkgs.flutter` via `.idx/dev.nix`)
-- **상태관리**: `flutter_riverpod`
-- **라우팅**: `go_router`
-- **HTTP**: `dio`
-- **모델 코드 생성**: `freezed` + `json_serializable` + `build_runner`
-- **백엔드**: Firebase (Auth / Firestore / Core) — 연결은 아래 TODO 참조
-
-## 폴더 구조
+## 📦 구성
 
 ```
-lib/
-  main.dart                 # 앱 진입점 (Firebase init + ProviderScope)
-  src/
-    app.dart                # MaterialApp.router + 테마
-    routing/
-      app_router.dart       # go_router 라우트 정의
-    core/
-      api/dio_client.dart   # Dio provider
-      firebase/firebase_bootstrap.dart
-    features/
-      home/presentation/home_screen.dart
+test_repository/
+├── streamlit-app/     # Python 3.11 + Streamlit 데모
+│   ├── app.py
+│   ├── requirements.txt
+│   └── .env.example
+├── react-app/         # React 18 + Vite 데모
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+└── .idx/dev.nix       # Firebase Studio 워크스페이스 설정
 ```
 
-## 실행
+## 🛠 포함된 도구
+
+- **Python**: 3.11, pip, virtualenv
+- **Node.js**: 20 + pnpm
+- **유틸리티**: git, gh, jq, ripgrep, curl, unzip
+- **VS Code 확장**: Claude Code, Python, Pylance, ESLint, Prettier, Tailwind CSS, GitLens 등
+
+## 🚀 실행 방법
+
+### Streamlit
+워크스페이스 생성 시 `.venv` 가 자동 생성됩니다. 수동 실행은 다음과 같습니다.
 
 ```bash
-flutter pub get
-flutter run                 # 연결된 디바이스/에뮬레이터로
-flutter analyze             # 정적 분석
-flutter test                # 위젯 테스트
+cd streamlit-app
+.venv/bin/streamlit run app.py
 ```
 
-코드 생성 (freezed/json_serializable 사용 시):
+또는 IDX 프리뷰에서 **streamlit** 항목을 실행하세요.
+
+### React
+```bash
+cd react-app
+pnpm dev
+```
+
+또는 IDX 프리뷰에서 **web** 항목을 실행하세요.
+
+## 🔑 API 키 설정 (선택)
 
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+cp streamlit-app/.env.example streamlit-app/.env
+# .env 파일에 ANTHROPIC_API_KEY / OPENAI_API_KEY 입력
 ```
 
-## Firebase Studio (IDX)
+## 🤖 Claude Code 활용
 
-`.idx/dev.nix`에 Flutter SDK, JDK17, unzip, Dart/Flutter VS Code 익스텐션, Android/Web 프리뷰가 선언되어 있습니다. 워크스페이스를 재시작하면 자동으로 구성됩니다.
-
-## TODO
-
-### Firebase 프로젝트 연결
-
-현재 `firebase_core/auth/firestore` 패키지는 추가되어 있지만 실제 Firebase 프로젝트와는 연결되지 않은 상태입니다. 다음 단계를 완료해야 정상 동작합니다.
-
-1. **Firebase 프로젝트 생성**
-   - https://console.firebase.google.com → "프로젝트 만들기"
-   - (Firebase는 GCP 위에서 동작 — 같은 이름의 GCP 프로젝트가 자동 생성됨)
-
-2. **FlutterFire CLI 설치 & 설정**
-   ```bash
-   npm install -g firebase-tools         # 또는 brew install firebase-cli
-   firebase login                        # 브라우저 로그인
-   dart pub global activate flutterfire_cli
-   flutterfire configure                 # iOS/Android 앱 자동 등록 + 키 파일 생성
-   ```
-   결과물:
-   - `lib/firebase_options.dart`
-   - `android/app/google-services.json`
-   - `ios/Runner/GoogleService-Info.plist`
-
-   위 세 파일은 `.gitignore`에 포함되어 있어 VCS에 올라가지 않습니다 (시크릿 관리 전략은 별도로 결정).
-
-3. **`firebase_bootstrap.dart` 수정**
-   `lib/src/core/firebase/firebase_bootstrap.dart`의 `Firebase.initializeApp()`을 다음으로 변경:
-   ```dart
-   import 'package:my_app/firebase_options.dart';
-   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-   ```
-
-4. **Firebase 콘솔에서 서비스 활성화**
-   - Authentication → 사용할 로그인 방법 (Email/Google/Apple 등) 켜기
-   - Firestore Database → 데이터베이스 생성 (테스트 모드로 시작 후 보안 규칙 작성)
-
-### 그 외
-
-- [ ] 앱 아이콘 / 스플래시 (`flutter_launcher_icons`, `flutter_native_splash`)
-- [ ] 라우트 추가 (`lib/src/features/` 하위 feature 디렉토리 확장)
-- [ ] 푸시 알림 (`firebase_messaging`)
-- [ ] Crashlytics / Analytics 연결
-- [ ] CI (GitHub Actions: `flutter analyze` + `flutter test`)
-- [ ] iOS 코드사이닝 / Android keystore 셋업 (배포 전)
+VS Code 사이드바의 Claude Code 패널 또는 터미널에서 `claude` 명령으로 시작합니다.
+각 데모 앱의 진입점(`streamlit-app/app.py`, `react-app/src/App.jsx`)을 수정하며 PoC 실습을 진행하세요.

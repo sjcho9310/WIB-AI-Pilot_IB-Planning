@@ -1,53 +1,25 @@
-# Hide dotfiles by default but keep IDX, gitignore, and Flutter VCS files visible
-.*
-!.idx
-!.gitignore
-!.metadata
+# Python
+__pycache__/
+*.py[cod]
+.venv/
 
-# Flutter / Dart / Pub
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-.fvm/
+# Node
+node_modules/
+dist/
+*.log
 
-# Symbolication / obfuscation
-app.*.symbols
-app.*.map.json
+# Env / Secrets
+.env
+.env.local
+.env.*.local
+.streamlit/secrets.toml
 
 # IDE
 .idea/
-.vscode/
-*.iml
-*.ipr
-*.iws
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/init.sh
 
-# macOS / Xcode
+# OS
 .DS_Store
-**/xcuserdata/
-**/Pods/
-ios/.symlinks/
-ios/Flutter/Flutter.framework
-ios/Flutter/Flutter.podspec
-ios/Flutter/flutter_export_environment.sh
-ios/Runner/GeneratedPluginRegistrant.*
-
-# Android
-android/.gradle/
-android/captures/
-android/local.properties
-android/key.properties
-android/app/release/
-**/GeneratedPluginRegistrant.*
-
-# Firebase secrets — keep out of VCS until you decide on a strategy
-ios/firebase_app_id_file.json
-ios/Runner/GoogleService-Info.plist
-android/app/google-services.json
-lib/firebase_options.dart
-
-# Misc
-__pycache__/
