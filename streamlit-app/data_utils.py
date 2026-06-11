@@ -1,0 +1,317 @@
+import uuid
+import datetime
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+# ---------------------------------------------------------------------------
+# 경로
+# ---------------------------------------------------------------------------
+DATA_DIR = Path(__file__).parent / "data"
+DEALS_CSV = DATA_DIR / "deals.csv"
+FTP_CSV = DATA_DIR / "ftp.csv"
+
+# ---------------------------------------------------------------------------
+# 조직 상수
+# ---------------------------------------------------------------------------
+ORG = {
+    "기업금융": ["기업금융1부", "기업금융2부", "기업금융3부", "구조화금융부"],
+    "CM":       ["CM1부", "CM2부", "IPO부", "CM솔루션부"],
+    "대체투자": ["대체투자금융1부", "대체투자금융2부", "대체투자금융3부"],
+    "투자금융": ["투자금융1부", "투자금융2부", "투자금융3부"],
+    "IB직속":   ["IB솔루션부"],
+}
+
+투자구조 = ["단일 Deal", "복합 Deal"]
+투자유형 = ["직접대출", "PI", "단순주선", "인수주선(사모)", "인수주선(공모)", "지급보증"]
+상품유형 = ["대출및사모사채", "공모사채", "Equity", "Mezzanine", "CP및전단채"]
+사업유형 = ["기업금융(CM포함)", "인수금융", "부동산담보대출", "부동산개발PF", "인프라", "자산유동화"]
+리소스Book유형 = ["종금Book", "셀다운Book", "PI Book", "ECM DCM북", "메자닌Book", "채무보증Book", "Book 미사용", "그룹펀드편입"]
+CIB여부 = ["그룹사>당사", "당사>그룹사", "해당사항없음"]
+모험자본여부 = ["O", "X", "해당사항없음"]
+당사주선투자트랜치 = ["단일순위", "선순위", "중후순위", "EBL", "Mezzanine", "Equity"]
+선취수수료구분 = ["취급수수료", "인수수수료", "주선수수료", "자문수수료", "확약수수료", "기타수수료", "해당사항없음", "TBD"]
+BRR등급 = ["AAA", "AA", "A+", "A-", "BBB+", "BBB", "BBB-", "BB+", "BB", "BB-", "B+", "B-", "TBD"]
+진행단계 = ["내부검토", "IB실무협의회", "종금실무협의회", "투자심의협의회", "투자심의위원회", "승인완료", "신디케이션진행"]
+
+# ---------------------------------------------------------------------------
+# 연동 매핑 상수
+# ---------------------------------------------------------------------------
+PRODUCT_TYPE_BY_INVEST_TYPE = {
+    "직접대출":       ["대출및사모사채"],
+    "PI":            ["Equity", "Mezzanine"],
+    "단순주선":       ["대출및사모사채", "공모사채", "Equity", "Mezzanine", "CP및전단채"],
+    "인수주선(사모)":  ["대출및사모사채", "Equity", "Mezzanine", "CP및전단채"],
+    "인수주선(공모)":  ["공모사채", "Equity", "Mezzanine", "CP및전단채"],
+    "지급보증":        ["대출및사모사채", "공모사채", "Equity", "Mezzanine", "CP및전단채"],
+}
+
+BOOK_TYPE_BY_PRODUCT_TYPE = {
+    "대출및사모사채": ["종금Book", "셀다운Book", "채무보증Book", "Book 미사용", "그룹펀드편입"],
+    "공모사채":       ["ECM DCM북", "Book 미사용", "그룹펀드편입"],
+    "Equity":        ["PI Book", "ECM DCM북", "채무보증Book", "Book 미사용", "그룹펀드편입"],
+    "Mezzanine":     ["PI Book", "ECM DCM북", "메자닌Book", "채무보증Book", "Book 미사용", "그룹펀드편입"],
+    "CP및전단채":     ["셀다운Book", "ECM DCM북", "채무보증Book", "Book 미사용", "그룹펀드편입"],
+}
+
+YIELD_TYPE_OPTIONS = {
+    "대출및사모사채": ["표면금리", "YTM", "YTC", "YTP"],
+    "공모사채":       ["표면금리", "YTM", "YTC", "YTP"],
+    "CP및전단채":     ["표면금리", "YTM", "YTC", "YTP"],
+    "Equity":        ["목표IRR", "배당수익률", "YTM", "YTC", "YTP"],
+    "Mezzanine":     ["목표IRR", "배당수익률", "YTM", "YTC", "YTP"],
+}
+
+# FTP 적용 제외 Book (자본 미사용)
+FTP_EXEMPT_BOOKS = {"채무보증Book", "Book 미사용", "그룹펀드편입"}
+
+# FTP 만기 구간 (월 단위)
+FTP_TENOR_MONTHS = {
+    "1d": 0.033, "1m": 1, "3m": 3, "6m": 6,
+    "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120,
+}
+FTP_TENOR_KEYS = list(FTP_TENOR_MONTHS.keys())
+FTP_TENOR_VALUES = list(FTP_TENOR_MONTHS.values())
+
+# ---------------------------------------------------------------------------
+# CSV 컬럼 정의
+# ---------------------------------------------------------------------------
+DEAL_COLUMNS = [
+    "deal_id", "트랜치번호", "부문", "본부", "부서", "최초작성일", "입력일",
+    "딜명", "상세내용/진행상황", "투자구조", "사업유형", "CIB여부", "모험자본여부",
+    "전체딜규모", "진행단계", "기표예정일",
+    "투자유형", "상품유형", "리소스Book유형", "당사주선/투자 트랜치",
+    "당사주선/인수규모", "당사투자금액",
+    "투자수익률구분", "투자수익률", "선취수수료구분", "선취수수료금액",
+    "투자기간만기", "BRR등급",
+]
+
+FTP_COLUMNS = ["날짜", "book_type", "1d", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y"]
+
+# ---------------------------------------------------------------------------
+# 딜 CSV 함수
+# ---------------------------------------------------------------------------
+def ensure_csv():
+    DATA_DIR.mkdir(exist_ok=True)
+    if not DEALS_CSV.exists():
+        pd.DataFrame(columns=DEAL_COLUMNS).to_csv(DEALS_CSV, index=False)
+
+
+def load_deals() -> pd.DataFrame:
+    ensure_csv()
+    df = pd.read_csv(DEALS_CSV, dtype=str)
+    for col in ["전체딜규모", "당사주선/인수규모", "당사투자금액", "투자수익률", "선취수수료금액"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "투자기간만기" in df.columns:
+        df["투자기간만기"] = pd.to_numeric(df["투자기간만기"], errors="coerce")
+    if "트랜치번호" in df.columns:
+        df["트랜치번호"] = pd.to_numeric(df["트랜치번호"], errors="coerce").astype("Int64")
+    return df
+
+
+def append_deal(rows: list[dict]):
+    """rows: 단일 Deal이면 1개, 복합 Deal이면 N개 dict 리스트"""
+    ensure_csv()
+    existing = load_deals()
+    new_df = pd.DataFrame(rows, columns=DEAL_COLUMNS)
+    pd.concat([existing, new_df], ignore_index=True).to_csv(DEALS_CSV, index=False)
+
+
+def filter_by_view(df: pd.DataFrame, ss: dict) -> pd.DataFrame:
+    level = ss.get("view_level")
+    if level == "all":
+        return df
+    if level == "division":
+        return df[df["본부"] == ss.get("selected_division")]
+    return df[df["부서"] == ss.get("selected_department")]
+
+
+def update_deals(edited_df: pd.DataFrame, ss: dict):
+    """현재 조직 범위 행을 edited_df로 교체"""
+    full = load_deals()
+    level = ss.get("view_level")
+    if level == "all":
+        mask = pd.Series([True] * len(full), index=full.index)
+    elif level == "division":
+        mask = full["본부"] == ss.get("selected_division")
+    else:
+        mask = full["부서"] == ss.get("selected_department")
+
+    keep = full[~mask]
+    save_cols = [c for c in DEAL_COLUMNS if c in edited_df.columns]
+    save_df = edited_df[save_cols]
+    pd.concat([keep, save_df], ignore_index=True).to_csv(DEALS_CSV, index=False)
+
+
+# ---------------------------------------------------------------------------
+# FTP CSV 함수
+# ---------------------------------------------------------------------------
+def ensure_ftp_csv():
+    DATA_DIR.mkdir(exist_ok=True)
+    if not FTP_CSV.exists():
+        pd.DataFrame(columns=FTP_COLUMNS).to_csv(FTP_CSV, index=False)
+
+
+def load_ftp() -> pd.DataFrame:
+    ensure_ftp_csv()
+    df = pd.read_csv(FTP_CSV, dtype=str)
+    for col in FTP_TENOR_KEYS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def append_ftp(date: str, book_type: str, rates: dict):
+    """rates: {"1d": float, "1m": float, ...}"""
+    ensure_ftp_csv()
+    existing = load_ftp()
+    row = {"날짜": date, "book_type": book_type}
+    row.update(rates)
+    new_df = pd.DataFrame([row], columns=FTP_COLUMNS)
+    pd.concat([existing, new_df], ignore_index=True).to_csv(FTP_CSV, index=False)
+
+
+def get_latest_ftp(book_type: str) -> dict | None:
+    df = load_ftp()
+    df = df[df["book_type"] == book_type].copy()
+    if df.empty:
+        return None
+    df = df.sort_values("날짜", ascending=False)
+    row = df.iloc[0]
+    return {k: row[k] for k in FTP_TENOR_KEYS}
+
+
+def get_ftp_rate(book_type: str, maturity_months: float) -> float | None:
+    rates_dict = get_latest_ftp(book_type)
+    if rates_dict is None:
+        return None
+    rate_values = [rates_dict[k] for k in FTP_TENOR_KEYS]
+    if any(np.isnan(v) for v in rate_values):
+        return None
+    return float(np.interp(maturity_months, FTP_TENOR_VALUES, rate_values))
+
+
+# ---------------------------------------------------------------------------
+# 순영업수익 산출
+# ---------------------------------------------------------------------------
+def _holding_months(기표예정일_str, 투자기간만기, current_year: int) -> float:
+    """당해 회계연도 보유월수 산출"""
+    try:
+        maturity = float(투자기간만기) if 투자기간만기 else 0
+    except (ValueError, TypeError):
+        maturity = 0
+
+    if not 기표예정일_str or pd.isna(기표예정일_str):
+        return min(maturity, 12.0)
+
+    try:
+        dt = datetime.date.fromisoformat(str(기표예정일_str))
+    except ValueError:
+        return min(maturity, 12.0)
+
+    year_end = datetime.date(current_year, 12, 31)
+
+    if dt.year > current_year:
+        return 0.0
+    if dt.year < current_year:
+        return min(maturity, 12.0)
+    # 당해연도 내 기표
+    remaining_days = (year_end - dt).days
+    remaining_months = remaining_days / 30.44
+    return min(maturity, remaining_months)
+
+
+def calc_net_revenue(row: dict | pd.Series, current_year: int = None) -> dict:
+    if current_year is None:
+        current_year = datetime.date.today().year
+
+    nan = float("nan")
+
+    def safe(val):
+        try:
+            v = float(val)
+            return v if not np.isnan(v) else None
+        except (TypeError, ValueError):
+            return None
+
+    투자금액 = safe(row.get("당사투자금액"))
+    수익률 = safe(row.get("투자수익률"))
+    수수료금액 = safe(row.get("선취수수료금액")) or 0.0
+    만기 = safe(row.get("투자기간만기")) or 0
+    book = str(row.get("리소스Book유형") or "")
+    기표일 = row.get("기표예정일")
+
+    if 투자금액 is None or 수익률 is None:
+        return {"수수료수익": 수수료금액, "이자수익": nan, "자본원가": nan, "Carry손익": nan, "순영업수익": nan}
+
+    holding = _holding_months(기표일, 만기, current_year)
+
+    이자수익 = 투자금액 * (수익률 / 100) * (holding / 12)
+
+    if book in FTP_EXEMPT_BOOKS:
+        자본원가 = 0.0
+    else:
+        ftp_book = "종금Book" if book == "종금Book" else "IB Book"
+        ftp_rate = get_ftp_rate(ftp_book, 만기)
+        if ftp_rate is None:
+            return {"수수료수익": 수수료금액, "이자수익": 이자수익, "자본원가": nan, "Carry손익": nan, "순영업수익": nan}
+        자본원가 = 투자금액 * (ftp_rate / 100) * (holding / 12)
+
+    Carry손익 = 이자수익 - 자본원가
+    순영업수익 = 수수료금액 + Carry손익
+    return {"수수료수익": 수수료금액, "이자수익": 이자수익, "자본원가": 자본원가, "Carry손익": Carry손익, "순영업수익": 순영업수익}
+
+
+def add_revenue_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    results = [calc_net_revenue(row) for _, row in df.iterrows()]
+    df["수수료수익"] = [r["수수료수익"] for r in results]
+    df["이자수익"] = [r["이자수익"] for r in results]
+    df["자본원가"] = [r["자본원가"] for r in results]
+    df["Carry손익"] = [r["Carry손익"] for r in results]
+    df["순영업수익"] = [r["순영업수익"] for r in results]
+    return df
+
+
+# ---------------------------------------------------------------------------
+# 헬퍼: 신규딜 행 딕셔너리 생성
+# ---------------------------------------------------------------------------
+def make_deal_rows(common: dict, tranches: list[dict]) -> list[dict]:
+    deal_id = str(uuid.uuid4())
+    today = datetime.date.today().isoformat()
+    rows = []
+    for i, t in enumerate(tranches, start=1):
+        row = {
+            "deal_id": deal_id,
+            "트랜치번호": i,
+            "부문": "IB부문",
+            "본부": common.get("본부", ""),
+            "부서": common.get("부서", ""),
+            "최초작성일": today,
+            "입력일": today,
+            "딜명": common.get("딜명", ""),
+            "상세내용/진행상황": common.get("상세내용/진행상황", ""),
+            "투자구조": common.get("투자구조", ""),
+            "사업유형": common.get("사업유형", ""),
+            "CIB여부": common.get("CIB여부", ""),
+            "모험자본여부": common.get("모험자본여부", ""),
+            "전체딜규모": common.get("전체딜규모", ""),
+            "진행단계": common.get("진행단계", ""),
+            "기표예정일": common.get("기표예정일", ""),
+            "투자유형": t.get("투자유형", ""),
+            "상품유형": t.get("상품유형", ""),
+            "리소스Book유형": t.get("리소스Book유형", ""),
+            "당사주선/투자 트랜치": t.get("당사주선/투자 트랜치", ""),
+            "당사주선/인수규모": t.get("당사주선/인수규모", ""),
+            "당사투자금액": t.get("당사투자금액", ""),
+            "투자수익률구분": t.get("투자수익률구분", ""),
+            "투자수익률": t.get("투자수익률", ""),
+            "선취수수료구분": t.get("선취수수료구분", ""),
+            "선취수수료금액": t.get("선취수수료금액", ""),
+            "투자기간만기": t.get("투자기간만기", ""),
+            "BRR등급": t.get("BRR등급", ""),
+        }
+        rows.append(row)
+    return rows

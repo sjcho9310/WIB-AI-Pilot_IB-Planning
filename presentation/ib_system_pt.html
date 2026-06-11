@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IB 영업현황 관리 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #0052ff;
+    --primary-active: #003ecc;
+    --ink: #0a0b0d;
+    --body: #5b616e;
+    --muted: #7c828a;
+    --canvas: #ffffff;
+    --surface-soft: #f7f7f7;
+    --surface-strong: #eef0f3;
+    --surface-dark: #0a0b0d;
+    --surface-dark-elevated: #16181c;
+    --hairline: #dee1e6;
+    --on-dark: #ffffff;
+    --on-dark-soft: #a8acb3;
+    --semantic-up: #05b169;
+    --semantic-down: #cf202f;
+    --slide-w: 1280px;
+    --slide-h: 720px;
+  }
+
+  html, body {
+    background: #1a1a1a;
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--ink);
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    padding: 40px 20px 80px;
+  }
+
+  /* ── Slide Base ── */
+  .slide {
+    width: var(--slide-w);
+    height: var(--slide-h);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--canvas);
+    border-radius: 8px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+
+  /* ── Common Header Strip ── */
+  .slide-header {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 48px;
+    border-bottom: 1px solid var(--hairline);
+    z-index: 10;
+  }
+  .slide-header.dark {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .chapter-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 12px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 100px;
+  }
+  .chapter-badge.outline {
+    background: transparent;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+  }
+  .chapter-badge.dark-outline {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.8);
+  }
+
+  .slide-num {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .slide-num.on-dark { color: var(--on-dark-soft); }
+
+  /* ── Content Layout ── */
+  .slide-body {
+    position: absolute;
+    top: 52px; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 36px 48px 36px;
+  }
+
+  /* ── Typography ── */
+  .title-display {
+    font-size: 40px;
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.8px;
+    color: var(--ink);
+  }
+  .title-display.on-dark { color: var(--on-dark); }
+
+  .subtitle {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--body);
+    margin-top: 10px;
+  }
+  .subtitle.on-dark { color: var(--on-dark-soft); }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+    margin-bottom: 6px;
+  }
+  .section-label.on-dark { color: rgba(168,180,255,0.9); }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    padding: 20px 24px;
+  }
+  .card.soft {
+    background: var(--surface-soft);
+    border-color: transparent;
+  }
+  .card.primary {
+    background: var(--primary);
+    border-color: transparent;
+    color: #fff;
+  }
+  .card.dark {
+    background: var(--surface-dark-elevated);
+    border-color: rgba(255,255,255,0.06);
+    color: var(--on-dark);
+  }
+  .card.accent-border {
+    border-left: 3px solid var(--primary);
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .card-title.on-dark { color: var(--on-dark); }
+  .card-title.accent { color: var(--primary); }
+
+  .card-body {
+    font-size: 13px;
+    color: var(--body);
+    line-height: 1.55;
+  }
+  .card-body.on-dark { color: var(--on-dark-soft); }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+  .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+  /* ── Pill / Tag ── */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .tag.blue { background: rgba(0,82,255,0.1); color: var(--primary); }
+  .tag.green { background: rgba(5,177,105,0.1); color: var(--semantic-up); }
+  .tag.gray { background: var(--surface-strong); color: var(--body); }
+  .tag.dark-gray { background: rgba(255,255,255,0.08); color: var(--on-dark-soft); }
+
+  /* ── List items ── */
+  .list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--body);
+    line-height: 1.5;
+    padding: 4px 0;
+  }
+  .list-item::before {
+    content: '—';
+    color: var(--primary);
+    font-weight: 600;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .list-item.on-dark { color: var(--on-dark-soft); }
+  .list-item.on-dark::before { color: rgba(168,180,255,0.8); }
+
+  /* ── KPI box ── */
+  .kpi-box {
+    background: var(--surface-soft);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .kpi-label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .kpi-value { font-size: 24px; font-weight: 600; color: var(--ink); font-family: 'JetBrains Mono', monospace; letter-spacing: -0.5px; }
+  .kpi-sub { font-size: 11px; color: var(--body); }
+
+  /* ── Table ── */
+  .mini-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .mini-table th {
+    text-align: left;
+    padding: 6px 10px;
+    background: var(--surface-strong);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .mini-table td {
+    padding: 7px 10px;
+    color: var(--body);
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: middle;
+  }
+  .mini-table tr:last-child td { border-bottom: none; }
+  .mini-table .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* ── Flow Step ── */
+  .flow-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .flow-step {
+    flex: 1;
+    background: var(--surface-soft);
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-align: center;
+    position: relative;
+  }
+  .flow-step-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .flow-step-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 3px;
+  }
+  .flow-step-sub {
+    font-size: 11px;
+    color: var(--body);
+    margin-top: 2px;
+  }
+  .flow-arrow {
+    width: 24px;
+    flex-shrink: 0;
+    text-align: center;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--hairline); margin: 16px 0; }
+  .divider.dark { border-top-color: rgba(255,255,255,0.08); }
+
+  /* ── Highlight box ── */
+  .highlight-box {
+    background: rgba(0,82,255,0.05);
+    border: 1px solid rgba(0,82,255,0.15);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  /* ── Formula box ── */
+  .formula-box {
+    background: var(--surface-dark-elevated);
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #a8d8ff;
+    line-height: 1.7;
+  }
+  .formula-comment { color: #5c6874; }
+
+  /* ── Bar chart mockup ── */
+  .bar-chart-mock {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bar-label { font-size: 11px; color: var(--body); width: 72px; text-align: right; flex-shrink: 0; white-space: nowrap; }
+  .bar-track { flex: 1; height: 18px; background: var(--surface-strong); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--primary); border-radius: 4px; opacity: 0.85; }
+  .bar-val { font-size: 11px; color: var(--muted); width: 28px; font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Screen mockup frame ── */
+  .screen-mock {
+    background: var(--surface-dark-elevated);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .screen-mock-bar {
+    background: var(--surface-dark);
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+
+  /* ── Slide-specific tweaks ── */
+  .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* Print / export */
+  @media print {
+    body { background: white; }
+    .stage { padding: 0; gap: 0; }
+    .slide {
+      box-shadow: none;
+      border-radius: 0;
+      page-break-after: always;
+      break-after: page;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 1 — 개발 배경 및 목적  (dark hero)
+  ══════════════════════════════════════════════════ -->
+  <div class="slide" style="background: var(--surface-dark);">
+    <div class="slide-header dark">
+      <span class="chapter-badge dark-outline">Overview</span>
+      <span class="slide-num on-dark">01 / 07</span>
+    </div>
+
+    <!-- bg accent -->
+    <div style="position:absolute;right:-120px;top:-80px;width:600px;height:600px;
+                background:radial-gradient(circle,rgba(0,82,255,0.18) 0%,transparent 70%);
+                pointer-events:none;"></div>
+
+    <div class="slide-body" style="flex-direction:row; gap:56px; align-items:flex-start; padding-top:44px;">
+
+      <!-- LEFT ── titles + context -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:0;">
+        <div class="section-label on-dark" style="margin-bottom:12px;">개발 배경 및 목적</div>
+        <div class="title-display on-dark" style="font-size:44px; letter-spacing:-1px; line-height:1.08;">
+          IB 영업현황<br>관리 시스템
+        </div>
+        <div class="subtitle on-dark" style="margin-top:14px; max-width:340px; font-size:14px;">
+          Investment Banking 부서 딜 파이프라인의<br>
+          입력·집계·수익성 분석을 단일 플랫폼으로 통합
+        </div>
+
+        <hr class="divider dark" style="margin:20px 0;">
+
+        <!-- Pain points -->
+        <div style="display:flex; flex-direction:column; gap:0;">
+          <div style="font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:rgba(168,180,255,0.8); margin-bottom:10px;">개발 배경</div>
+          <div class="list-item on-dark">딜 현황을 부서별 Excel로 관리 → 통합 집계 불가, 버전 충돌</div>
+          <div class="list-item on-dark">수익성(FTP 원가·Carry손익) 수기 계산 → 오류 빈발</div>
+          <div class="list-item on-dark">영업 방치 딜 추적 수단 부재 → 마지막수정일 관리 필요</div>
+          <div class="list-item on-dark">본부별·부서별 통합 통계 부재 → 경영진 보고 지연</div>
+        </div>
+      </div>
+
+      <!-- RIGHT ── purpose cards -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding-top:4px;">
+
+        <div style="font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:rgba(168,180,255,0.8); margin-bottom:4px;">핵심 목적</div>
+
+        <div class="card dark" style="border-radius:14px; display:flex; gap:14px; align-items:flex-start;">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,82,255,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">📋</div>
+          <div>
+            <div class="card-title on-dark">딜 파이프라인 통합 관리</div>
+            <div class="card-body on-dark" style="font-size:12px;">신규딜 입력 → 진행단계 추적 → 딜리스트 편집을 단일 화면에서 처리. 복합 Deal의 다중 트랜치 구조 지원.</div>
+          </div>
+        </div>
+
+        <div class="card dark" style="border-radius:14px; display:flex; gap:14px; align-items:flex-start;">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,82,255,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">📊</div>
+          <div>
+            <div class="card-title on-dark">수익성 자동 산출</div>
+            <div class="card-body on-dark" style="font-size:12px;">FTP 금리 기반 자본원가·Carry손익·순영업수익을 실시간 재계산. FTP 선형 보간으로 중간 만기 자동 처리.</div>
+          </div>
+        </div>
+
+        <div class="card dark" style="border-radius:14px; display:flex; gap:14px; align-items:flex-start;">
+          <div style="width:36px;height:36px;border-radius:10px;background:rgba(0,82,255,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;">🏢</div>
+          <div>
+            <div class="card-title on-dark">조직 계층 집계 통계</div>
+            <div class="card-body on-dark" style="font-size:12px;">부서 → 본부 → IB부문 통합까지 권한별 데이터 필터링. KPI·차트·요약테이블로 경영진 보고 즉시 지원.</div>
+          </div>
+        </div>
+
+        <!-- Tech stack row -->
+        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+          <span class="tag dark-gray">Streamlit PoC</span>
+          <span class="tag dark-gray">Python 3.11</span>
+          <span class="tag dark-gray">CSV 저장소</span>
+          <span class="tag dark-gray">FTP 선형보간</span>
+          <span class="tag dark-gray">Altair 차트</span>
+          <span class="tag dark-gray">Firebase Studio</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 2 — 화면 0 : 조직 선택
+  ══════════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header">
+      <span class="chapter-badge outline">화면 01</span>
+      <span class="slide-num">02 / 07</span>
+    </div>
+
+    <div class="slide-body" style="gap:18px;">
+
+      <!-- title row -->
+      <div>
+        <div class="section-label">접속 진입점 — 권한 라우팅</div>
+        <div class="title-display">조직 선택 화면</div>
+        <div class="subtitle">로그인 없이 3단계 계층 선택으로 역할·범위를 즉시 설정 — 이후 모든 데이터 접근이 여기서 결정된다</div>
+      </div>
+
+      <!-- flow steps -->
+      <div class="flow-steps">
+        <div class="flow-step" style="background:rgba(0,82,255,0.06);border:1px solid rgba(0,82,255,0.15);">
+          <div class="flow-step-num">Step 1</div>
+          <div class="flow-step-label">역할 선택</div>
+          <div class="flow-step-sub">영업조직 / 관리자</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-step-num">Step 2</div>
+          <div class="flow-step-label">본부 선택</div>
+          <div class="flow-step-sub">기업금융 / CM / 대체투자 / 투자금융 / IB직속</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-step-num">Step 3 (영업)</div>
+          <div class="flow-step-label">부서 선택</div>
+          <div class="flow-step-sub">본부 소속 부서 목록</div>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step" style="background:rgba(0,82,255,0.06);border:1px solid rgba(0,82,255,0.15);">
+          <div class="flow-step-num">완료</div>
+          <div class="flow-step-label">홈 진입</div>
+          <div class="flow-step-sub">view_level 확정</div>
+        </div>
+      </div>
+
+      <!-- two columns -->
+      <div class="grid-2" style="flex:1; align-items:stretch;">
+
+        <!-- LEFT: role table -->
+        <div>
+          <div class="card-title accent" style="margin-bottom:10px; font-size:12px;">역할별 접근 권한 비교</div>
+          <table class="mini-table" style="border:1px solid var(--hairline); border-radius:10px; overflow:hidden;">
+            <thead>
+              <tr>
+                <th style="width:100px;">항목</th>
+                <th>영업조직</th>
+                <th>관리자</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight:600; color:var(--ink);">데이터 범위</td>
+                <td>본인 <strong>부서</strong> 딜만</td>
+                <td>선택 본부 / <strong>전체</strong></td>
+              </tr>
+              <tr>
+                <td style="font-weight:600; color:var(--ink);">신규딜 입력</td>
+                <td><span class="tag green">활성</span></td>
+                <td><span class="tag gray">비활성</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight:600; color:var(--ink);">FTP 관리</td>
+                <td><span class="tag gray">비활성</span></td>
+                <td><span class="tag green">활성</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight:600; color:var(--ink);">딜리스트</td>
+                <td>소속 부서 한정</td>
+                <td>선택 범위 전체</td>
+              </tr>
+              <tr>
+                <td style="font-weight:600; color:var(--ink);">영업통계</td>
+                <td>소속 부서 한정</td>
+                <td>본부/통합 집계</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- RIGHT: view_level + org chart -->
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div class="card-title accent" style="font-size:12px;">view_level — 화면 전반의 데이터 컨텍스트</div>
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="card" style="border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:12px;">
+              <span class="tag blue" style="width:80px; justify-content:center;">department</span>
+              <div style="font-size:12px; color:var(--body);">영업조직 부서 선택 시 — 해당 부서 딜만 필터링</div>
+            </div>
+            <div class="card" style="border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:12px;">
+              <span class="tag blue" style="width:80px; justify-content:center;">division</span>
+              <div style="font-size:12px; color:var(--body);">관리자 본부 선택 시 — 본부 내 전 부서 딜 집계</div>
+            </div>
+            <div class="card soft" style="border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:12px; border:1px solid rgba(0,82,255,0.2);">
+              <span class="tag blue" style="width:80px; justify-content:center; background:var(--primary); color:#fff;">all</span>
+              <div style="font-size:12px; color:var(--body);">관리자 IB부문통합 선택 시 — 전 본부·부서 통합 조회</div>
+            </div>
+          </div>
+
+          <div class="highlight-box" style="margin-top:auto; font-size:12px;">
+            <strong>설계 포인트:</strong> session_state에 <code style="background:var(--surface-strong); padding:1px 5px; border-radius:4px; font-size:11px;">view_level</code>을 저장해 두면 딜리스트·통계·저장 로직이 조직 범위를 별도 파라미터 없이 자동 반영
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 3 — 화면 1 : 홈
+  ══════════════════════════════════════════════════ -->
+  <div class="slide" style="background: var(--surface-soft);">
+    <div class="slide-header" style="background:var(--surface-soft); border-bottom-color:var(--hairline);">
+      <span class="chapter-badge outline">화면 02</span>
+      <span class="slide-num">03 / 07</span>
+    </div>
+
+    <div class="slide-body" style="gap:16px;">
+
+      <div>
+        <div class="section-label">내비게이션 허브 — 역할별 메뉴 활성화</div>
+        <div class="title-display">홈 화면</div>
+        <div class="subtitle">조직 선택 직후 진입하는 허브. 4개 기능 버튼 + 우상단 내비게이션으로 모든 화면에 접근</div>
+      </div>
+
+      <!-- nav mention -->
+      <div style="background:#fff; border:1px solid var(--hairline); border-radius:10px; padding:10px 16px; display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:12px; color:var(--body);">
+          <strong style="color:var(--ink);">우상단 공통 내비게이션</strong> — 화면 0 제외 전 화면에 고정 표시
+        </span>
+        <div style="display:flex; gap:8px;">
+          <span style="background:var(--surface-strong); border-radius:100px; padding:5px 14px; font-size:12px; font-weight:500; color:var(--ink);">← 뒤로</span>
+          <span style="background:var(--surface-strong); border-radius:100px; padding:5px 14px; font-size:12px; font-weight:500; color:var(--ink);">⌂ 조직선택</span>
+        </div>
+      </div>
+
+      <!-- 4 menu cards -->
+      <div class="grid-2" style="flex:1; gap:14px;">
+
+        <div class="card" style="border-radius:16px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:var(--primary); border-radius:4px 0 0 4px;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding-left:8px;">
+            <div style="font-size:20px;">✏️</div>
+            <span class="tag green">영업조직 전용</span>
+          </div>
+          <div style="padding-left:8px;">
+            <div style="font-size:16px; font-weight:600; color:var(--ink);">신규딜 입력</div>
+            <div style="font-size:12px; color:var(--body); margin-top:4px; line-height:1.5;">
+              공통 딜 정보 + 트랜치별 정보 입력.<br>단일/복합 Deal 구조 분기 처리.<br>관리자 접근 시 <strong>비활성화</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-radius:16px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:#7c828a; border-radius:4px 0 0 4px;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding-left:8px;">
+            <div style="font-size:20px;">📋</div>
+            <span class="tag gray">공통</span>
+          </div>
+          <div style="padding-left:8px;">
+            <div style="font-size:16px; font-weight:600; color:var(--ink);">딜 리스트</div>
+            <div style="font-size:12px; color:var(--body); margin-top:4px; line-height:1.5;">
+              전체 딜 현황 편집 가능 테이블.<br>진행단계 필터 + 수익성 지표 자동 산출.<br>view_level에 따라 데이터 범위 자동 한정
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-radius:16px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:#7c828a; border-radius:4px 0 0 4px;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding-left:8px;">
+            <div style="font-size:20px;">📊</div>
+            <span class="tag gray">공통</span>
+          </div>
+          <div style="padding-left:8px;">
+            <div style="font-size:16px; font-weight:600; color:var(--ink);">영업통계</div>
+            <div style="font-size:12px; color:var(--body); margin-top:4px; line-height:1.5;">
+              KPI 지표 + 가로 막대차트 + 요약테이블.<br>조직 선택 범위에 맞춰 통계 자동 집계.<br>본부/통합 선택 시 본부별·부서별 집계 추가
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-radius:16px; display:flex; flex-direction:column; gap:10px; position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; width:4px; height:100%; background:var(--primary); border-radius:4px 0 0 4px;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; padding-left:8px;">
+            <div style="font-size:20px;">⚙️</div>
+            <span class="tag blue">관리자 전용</span>
+          </div>
+          <div style="padding-left:8px;">
+            <div style="font-size:16px; font-weight:600; color:var(--ink);">FTP 관리</div>
+            <div style="font-size:12px; color:var(--body); margin-top:4px; line-height:1.5;">
+              종금Book / IB Book FTP 금리 입력 및 이력 관리.<br>변경 즉시 전체 Carry손익 자동 재산출.<br>영업조직 접근 시 <strong>비활성화</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="highlight-box" style="font-size:12px;">
+        <strong>타이틀 표시 규칙:</strong>&nbsp;
+        IB부문통합 → <em>"IB 영업현황 관리 — IB부문 통합"</em> &nbsp;|&nbsp;
+        기업금융 본부 → <em>"IB 영업현황 관리 — 기업금융"</em> &nbsp;|&nbsp;
+        기업금융1부 → <em>"IB 영업현황 관리 — 기업금융1부"</em>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 4 — 화면 2 : 신규딜 입력
+  ══════════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header">
+      <span class="chapter-badge outline">화면 03</span>
+      <span class="slide-num">04 / 07</span>
+    </div>
+
+    <div class="slide-body" style="gap:14px;">
+
+      <div>
+        <div class="section-label">입력 폼 — 연동 드롭다운 + 트랜치 구조 분기</div>
+        <div class="title-display">신규딜 입력 화면</div>
+        <div class="subtitle">공통 딜 정보를 먼저 입력한 뒤, 투자구조에 따라 트랜치 섹션을 1개(단일) 또는 N개(복합)로 분기</div>
+      </div>
+
+      <div class="grid-2" style="flex:1; gap:16px; align-items:start;">
+
+        <!-- LEFT: input layout overview -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">입력 구조</div>
+
+          <!-- step A -->
+          <div style="background:var(--surface-soft); border-radius:10px; padding:12px 14px;">
+            <div style="font-size:11px; font-weight:700; color:var(--primary); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.06em;">STEP A — 공통 딜 정보</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:12px; color:var(--body);">
+              <span>딜명 + 진행단계</span>
+              <span>투자구조 + 사업유형</span>
+              <span>CIB여부 + 모험자본여부</span>
+              <span>전체딜규모 + 기표예정일</span>
+              <span style="grid-column:1/-1;">상세내용/진행상황 (전체 너비)</span>
+            </div>
+          </div>
+
+          <!-- step B branches -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div style="background:var(--surface-soft); border-radius:10px; padding:11px 13px; border-top:3px solid var(--primary);">
+              <div style="font-size:11px; font-weight:700; color:var(--ink); margin-bottom:6px;">단일 Deal</div>
+              <div style="font-size:12px; color:var(--body); line-height:1.5;">트랜치 섹션 1개<br>트랜치 타입 직접 선택</div>
+            </div>
+            <div style="background:var(--surface-soft); border-radius:10px; padding:11px 13px; border-top:3px solid #7c828a;">
+              <div style="font-size:11px; font-weight:700; color:var(--ink); margin-bottom:6px;">복합 Deal</div>
+              <div style="font-size:12px; color:var(--body); line-height:1.5;">멀티셀렉트로 2개↑ 트랜치 선택<br>선택값이 각 섹션 헤더로 자동 바인딩</div>
+            </div>
+          </div>
+
+          <!-- tranche fields -->
+          <div style="background:var(--surface-soft); border-radius:10px; padding:12px 14px;">
+            <div style="font-size:11px; font-weight:700; color:var(--primary); margin-bottom:8px; text-transform:uppercase; letter-spacing:0.06em;">STEP B — 트랜치별 반복 입력</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:12px; color:var(--body);">
+              <span>투자유형 ↓ 상품유형 ↓ Book유형</span>
+              <span>당사주선/투자 트랜치</span>
+              <span>당사주선/인수규모(억원)</span>
+              <span>당사투자금액(억원)</span>
+              <span>투자수익률구분 + 투자수익률(%)</span>
+              <span>투자기간만기(월) + BRR등급</span>
+              <span>선취수수료구분 + 금액(억원)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: cascade logic + special rules -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">3단 연동 드롭다운 — 핵심 설계 포인트</div>
+
+          <!-- cascade arrows -->
+          <div style="background:var(--surface-dark); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="background:rgba(0,82,255,0.25); color:#a8c0ff; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; width:100px; text-align:center;">투자유형</span>
+              <span style="color:rgba(255,255,255,0.3); font-size:11px; flex:1;">→ 허용 상품유형 목록 즉시 교체</span>
+            </div>
+            <div style="margin-left:20px; border-left:2px dashed rgba(0,82,255,0.3); padding-left:12px; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="background:rgba(0,82,255,0.2); color:#a8c0ff; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; width:88px; text-align:center;">상품유형</span>
+                <span style="color:rgba(255,255,255,0.3); font-size:11px; flex:1;">→ 허용 Book유형 목록 + 수익률구분 교체</span>
+              </div>
+              <div style="margin-left:20px; border-left:2px dashed rgba(0,82,255,0.2); padding-left:12px; display:flex; gap:10px; align-items:center;">
+                <span style="background:rgba(0,82,255,0.12); color:#a8c0ff; font-size:12px; font-weight:600; padding:4px 10px; border-radius:6px; width:80px; text-align:center;">Book유형</span>
+                <span style="color:rgba(255,255,255,0.25); font-size:11px;">+ 투자수익률구분</span>
+              </div>
+            </div>
+            <div style="font-size:11px; color:rgba(255,255,255,0.25); margin-top:4px;">상위 항목 변경 시 → 하위 항목 범위 밖이면 첫 번째 값으로 자동 리셋</div>
+          </div>
+
+          <!-- special rules -->
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="background:var(--surface-soft); border-radius:10px; padding:11px 14px; display:flex; gap:10px; align-items:flex-start;">
+              <span style="color:var(--primary); font-weight:700; font-size:14px; flex-shrink:0;">①</span>
+              <div style="font-size:12px; color:var(--body); line-height:1.5;">
+                <strong style="color:var(--ink);">당사투자금액 = 0</strong>이면 투자수익률구분·투자수익률 입력 비활성화<br>
+                <span style="font-size:11px;">→ 주선/인수 전용 딜에서 수익률 오입력 방지</span>
+              </div>
+            </div>
+            <div style="background:var(--surface-soft); border-radius:10px; padding:11px 14px; display:flex; gap:10px; align-items:flex-start;">
+              <span style="color:var(--primary); font-weight:700; font-size:14px; flex-shrink:0;">②</span>
+              <div style="font-size:12px; color:var(--body); line-height:1.5;">
+                <strong style="color:var(--ink);">복합 Deal 트랜치</strong> = [단일순위 / 선순위 / 중후순위 / EBL / Mezzanine / Equity] 멀티셀렉트<br>
+                <span style="font-size:11px;">→ 선택순서대로 트랜치 1·2·3 배정, 트랜치 타입 필드 자동 고정</span>
+              </div>
+            </div>
+            <div style="background:var(--surface-soft); border-radius:10px; padding:11px 14px; display:flex; gap:10px; align-items:flex-start;">
+              <span style="color:var(--primary); font-weight:700; font-size:14px; flex-shrink:0;">③</span>
+              <div style="font-size:12px; color:var(--body); line-height:1.5;">
+                저장 시 같은 <strong style="color:var(--ink);">deal_id</strong>를 공유하는 트랜치 행을 CSV에 일괄 Append<br>
+                <span style="font-size:11px;">→ 복합 Deal = 복수 행으로 저장, 통계에서 deal_id 기준 딜 수 집계</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 5 — 화면 3 : 딜 리스트
+  ══════════════════════════════════════════════════ -->
+  <div class="slide" style="background: var(--surface-soft);">
+    <div class="slide-header" style="background:var(--surface-soft);">
+      <span class="chapter-badge outline">화면 04</span>
+      <span class="slide-num">05 / 07</span>
+    </div>
+
+    <div class="slide-body" style="gap:14px;">
+
+      <div>
+        <div class="section-label">딜 현황 + 수익성 지표 — 인라인 편집</div>
+        <div class="title-display">딜 리스트 화면</div>
+        <div class="subtitle">data_editor 기반 인라인 편집 가능 테이블 — FTP 원가·Carry손익·순영업수익이 저장 시점마다 재산출</div>
+      </div>
+
+      <div class="grid-2" style="flex:1; gap:16px; align-items:start;">
+
+        <!-- LEFT: column order -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">컬럼 표시 순서 (28개 중 주요)</div>
+          <table class="mini-table" style="background:#fff; border:1px solid var(--hairline); border-radius:10px; overflow:hidden;">
+            <thead>
+              <tr>
+                <th style="width:40px;">#</th>
+                <th>컬럼명</th>
+                <th>속성</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="mono">1</td><td>최초작성일 · 마지막수정일</td><td><span class="tag gray" style="font-size:10px;">읽기전용</span></td></tr>
+              <tr><td class="mono">2</td><td>부서 · 진행단계 · 딜명</td><td><span class="tag gray" style="font-size:10px;">편집가능</span></td></tr>
+              <tr><td class="mono">3</td><td>트랜치# · 사업유형 · 상품유형 · 투자유형</td><td><span class="tag gray" style="font-size:10px;">편집가능</span></td></tr>
+              <tr><td class="mono">4</td><td>당사주선/인수규모 · <strong>리소스Book유형</strong> · 당사투자금액</td><td><span class="tag blue" style="font-size:10px;">수익 연동</span></td></tr>
+              <tr><td class="mono">5</td><td>투자수익률구분 · <strong>투자수익률</strong></td><td><span class="tag blue" style="font-size:10px;">수익 연동</span></td></tr>
+              <tr><td class="mono">6</td><td><strong>FTP유형</strong> · <strong>FTP원가율</strong> · <strong>Carry손익</strong></td><td><span class="tag green" style="font-size:10px;">자동산출</span></td></tr>
+              <tr><td class="mono">7</td><td>선취수수료구분 · 선취수수료금액 · <strong>순영업수익</strong></td><td><span class="tag green" style="font-size:10px;">자동산출</span></td></tr>
+              <tr><td class="mono">8</td><td>BRR등급 · 기표예정일 · 상세내용</td><td><span class="tag gray" style="font-size:10px;">편집가능</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- RIGHT: key logic cards -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">핵심 자동 산출 로직</div>
+
+          <div class="card accent-border" style="border-radius:10px; padding:12px 14px;">
+            <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:6px;">FTP 원가율 자동 계산</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--body); line-height:1.8;">
+              Book ∈ {채무보증, Book미사용, 그룹펀드} → <span style="color:var(--semantic-down);">미적용</span><br>
+              Book = 종금Book → 종금Book FTP 테이블 사용<br>
+              나머지 → IB Book FTP 테이블 사용<br>
+              선형보간: numpy.interp(만기월, tenor구간, 금리배열)
+            </div>
+          </div>
+
+          <div class="card accent-border" style="border-radius:10px; padding:12px 14px;">
+            <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:6px;">Carry손익 산출 공식</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--primary); line-height:2;">
+              보유월수 = min(투자기간만기, 기표일~12/31 잔여월수)<br>
+              이자수익 = 투자금액 × 수익률% / 100 × 보유월수 / 12<br>
+              자본원가 = 투자금액 × FTP% / 100 × 보유월수 / 12<br>
+              <strong>Carry손익 = 이자수익 − 자본원가</strong>
+            </div>
+          </div>
+
+          <div class="card accent-border" style="border-radius:10px; padding:12px 14px;">
+            <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:6px;">마지막수정일 추적 로직</div>
+            <div style="font-size:12px; color:var(--body); line-height:1.5;">
+              저장 버튼 클릭 시 <strong>deal_id + 트랜치번호</strong>를 키로 원본 CSV와 비교.<br>
+              실제로 변경된 행만 <code style="background:var(--surface-strong); padding:1px 4px; border-radius:4px; font-size:11px;">입력일</code> 컬럼을 오늘 날짜로 갱신.<br>
+              <span style="color:var(--semantic-up); font-weight:600; font-size:11px;">→ 방치된 딜 추적 가능 (마지막수정일 표시)</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 6 — 화면 4 : 영업통계
+  ══════════════════════════════════════════════════ -->
+  <div class="slide">
+    <div class="slide-header">
+      <span class="chapter-badge outline">화면 05</span>
+      <span class="slide-num">06 / 07</span>
+    </div>
+
+    <div class="slide-body" style="gap:14px;">
+
+      <div>
+        <div class="section-label">경영진 보고용 — KPI · 차트 · 요약테이블</div>
+        <div class="title-display">영업통계 화면</div>
+        <div class="subtitle">선택된 조직 범위의 딜을 자동 집계 — "[조직명] 영업통계" 타이틀로 현재 보고 범위를 명시</div>
+      </div>
+
+      <!-- KPI row mockup -->
+      <div class="grid-5" style="gap:10px;">
+        <div class="kpi-box">
+          <div class="kpi-label">전체 딜 수</div>
+          <div class="kpi-value" style="font-size:22px;">12건</div>
+          <div class="kpi-sub">deal_id 기준 집계</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">총 주선금액</div>
+          <div class="kpi-value" style="font-size:22px;">2,450</div>
+          <div class="kpi-sub">억원</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">총 투자금액</div>
+          <div class="kpi-value" style="font-size:22px;">1,200</div>
+          <div class="kpi-sub">억원 (정수 단위)</div>
+        </div>
+        <div class="kpi-box">
+          <div class="kpi-label">선취수수료</div>
+          <div class="kpi-value" style="font-size:22px;">18.5</div>
+          <div class="kpi-sub">억원 (소수점 1자리)</div>
+        </div>
+        <div class="kpi-box" style="background:rgba(0,82,255,0.06); border:1px solid rgba(0,82,255,0.15);">
+          <div class="kpi-label" style="color:var(--primary);">순영업수익</div>
+          <div class="kpi-value" style="color:var(--primary); font-size:22px;">42.3</div>
+          <div class="kpi-sub">억원 (소수점 1자리)</div>
+        </div>
+      </div>
+
+      <!-- charts + tables -->
+      <div class="grid-2" style="flex:1; gap:16px; align-items:start;">
+
+        <!-- LEFT: chart mockups -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">가로 막대차트 (Altair — domainMin=0 고정)</div>
+
+          <div style="background:var(--surface-soft); border-radius:10px; padding:12px 14px;">
+            <div style="font-size:11px; font-weight:600; color:var(--body); margin-bottom:8px;">진행단계별 딜 수 (최대 10, 정수 축)</div>
+            <div class="bar-chart-mock">
+              <div class="bar-row"><span class="bar-label">내부검토</span><div class="bar-track"><div class="bar-fill" style="width:40%;"></div></div><span class="bar-val">4</span></div>
+              <div class="bar-row"><span class="bar-label">IB실무협의</span><div class="bar-track"><div class="bar-fill" style="width:30%;"></div></div><span class="bar-val">3</span></div>
+              <div class="bar-row"><span class="bar-label">투심위</span><div class="bar-track"><div class="bar-fill" style="width:20%;"></div></div><span class="bar-val">2</span></div>
+              <div class="bar-row"><span class="bar-label">승인완료</span><div class="bar-track"><div class="bar-fill" style="width:30%;"></div></div><span class="bar-val">3</span></div>
+            </div>
+          </div>
+
+          <div style="background:var(--surface-soft); border-radius:10px; padding:12px 14px;">
+            <div style="font-size:11px; font-weight:600; color:var(--body); margin-bottom:8px;">투자유형별 당사 투자금액(억원)</div>
+            <div class="bar-chart-mock">
+              <div class="bar-row"><span class="bar-label">직접대출</span><div class="bar-track"><div class="bar-fill" style="width:70%;"></div></div><span class="bar-val">840</span></div>
+              <div class="bar-row"><span class="bar-label">PI</span><div class="bar-track"><div class="bar-fill" style="width:30%;"></div></div><span class="bar-val">360</span></div>
+              <div class="bar-row"><span class="bar-label">단순주선</span><div class="bar-track"><div class="bar-fill" style="width:0%;"></div></div><span class="bar-val">0</span></div>
+              <div class="bar-row"><span class="bar-label">인수주선</span><div class="bar-track"><div class="bar-fill" style="width:10%;"></div></div><span class="bar-val">120</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: summary tables -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">요약 테이블 구성 (view_level별 표시)</div>
+
+          <table class="mini-table" style="background:#fff; border:1px solid var(--hairline); border-radius:10px; overflow:hidden; font-size:11px;">
+            <thead>
+              <tr>
+                <th>진행단계</th>
+                <th>딜수</th>
+                <th>주선/인수(억)</th>
+                <th>투자금액(억)</th>
+                <th>수수료(억)</th>
+                <th>순영업수익(억)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>내부검토</td><td class="mono">4</td><td class="mono">620</td><td class="mono">300</td><td class="mono">4.2</td><td class="mono">10.8</td></tr>
+              <tr><td>IB실무협의</td><td class="mono">3</td><td class="mono">450</td><td class="mono">250</td><td class="mono">3.1</td><td class="mono">8.3</td></tr>
+              <tr><td>승인완료</td><td class="mono">3</td><td class="mono">890</td><td class="mono">450</td><td class="mono">7.8</td><td class="mono">14.5</td></tr>
+            </tbody>
+          </table>
+
+          <div style="background:var(--surface-soft); border-radius:10px; padding:10px 14px;">
+            <div style="font-size:11px; font-weight:600; color:var(--ink); margin-bottom:6px;">view_level별 추가 테이블</div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div class="list-item" style="font-size:12px;"><strong>division</strong> → 부서별 요약 테이블 추가 표시</div>
+              <div class="list-item" style="font-size:12px;"><strong>all (통합)</strong> → 본부별 요약 + 부서별 차트 추가</div>
+              <div class="list-item" style="font-size:12px;">0값 항목도 <code style="background:var(--surface-strong);padding:1px 4px;border-radius:3px;font-size:10px;">reindex(fill_value=0)</code>로 항상 표시</div>
+            </div>
+          </div>
+
+          <div class="highlight-box" style="font-size:12px; margin-top:auto;">
+            <strong>통계 타이틀 규칙:</strong>&nbsp;
+            <code style="background:var(--surface-strong); padding:1px 5px; border-radius:4px; font-size:11px;">{scope} 영업통계</code><br>
+            IB부문통합 선택 시 → <em>"IB부문 통합 영업통계"</em>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════
+       SLIDE 7 — 화면 5 : FTP 관리
+  ══════════════════════════════════════════════════ -->
+  <div class="slide" style="background: var(--surface-soft);">
+    <div class="slide-header" style="background:var(--surface-soft);">
+      <span class="chapter-badge outline">화면 06</span>
+      <span class="slide-num">07 / 07</span>
+    </div>
+
+    <div class="slide-body" style="gap:14px;">
+
+      <div>
+        <div class="section-label">관리자 전용 — 자본원가 산출 기준 중앙 관리</div>
+        <div class="title-display">FTP 관리 화면</div>
+        <div class="subtitle">종금Book / IB Book의 FTP 금리를 9개 만기 구간으로 입력 — 저장 즉시 전체 딜의 Carry손익·순영업수익이 재산출</div>
+      </div>
+
+      <div class="grid-2" style="flex:1; gap:16px; align-items:start;">
+
+        <!-- LEFT: FTP structure -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">FTP 입력 구조 (탭 2개)</div>
+
+          <div style="background:var(--surface-dark); border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+            <!-- tab bar mockup -->
+            <div style="display:flex; gap:0; background:rgba(255,255,255,0.06); border-radius:8px; padding:3px;">
+              <div style="flex:1; background:var(--primary); border-radius:6px; padding:5px 12px; font-size:12px; font-weight:600; color:#fff; text-align:center;">종금Book FTP</div>
+              <div style="flex:1; padding:5px 12px; font-size:12px; color:rgba(255,255,255,0.4); text-align:center;">IB Book FTP</div>
+            </div>
+
+            <!-- tenor grid -->
+            <div>
+              <div style="font-size:11px; color:rgba(255,255,255,0.3); margin-bottom:6px; font-weight:500;">9개 만기 구간 입력 (% 단위)</div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;">
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">1d</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">3.85</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">1m</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">3.90</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">3m</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">3.95</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">6m</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">4.00</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">1y</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">4.10</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">2y</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">4.20</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">3y</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">4.35</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">5y</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">4.50</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.06); border-radius:6px; padding:7px 10px;">
+                  <div style="font-size:10px; color:rgba(255,255,255,0.3); margin-bottom:2px;">10y</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:500; color:#a8c8ff;">4.70</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- save button mockup -->
+            <div style="background:var(--primary); border-radius:100px; padding:8px; text-align:center; font-size:12px; font-weight:600; color:#fff;">저장</div>
+
+          </div>
+        </div>
+
+        <!-- RIGHT: key concepts -->
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="card-title accent" style="font-size:12px;">Book유형별 FTP 적용 기준</div>
+
+          <table class="mini-table" style="background:#fff; border:1px solid var(--hairline); border-radius:10px; overflow:hidden; font-size:11px;">
+            <thead>
+              <tr>
+                <th>리소스Book유형</th>
+                <th>FTP 적용</th>
+                <th>사용 테이블</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>종금Book</td><td><span class="tag blue" style="font-size:10px;">적용</span></td><td>종금Book FTP</td></tr>
+              <tr><td>셀다운Book / PI Book / ECM DCM북 / 메자닌Book</td><td><span class="tag blue" style="font-size:10px;">적용</span></td><td>IB Book FTP</td></tr>
+              <tr><td>채무보증Book</td><td><span class="tag gray" style="font-size:10px;">미적용</span></td><td>자본원가 = 0</td></tr>
+              <tr><td>Book 미사용 / 그룹펀드편입</td><td><span class="tag gray" style="font-size:10px;">미적용</span></td><td>자본원가 = 0</td></tr>
+            </tbody>
+          </table>
+
+          <div class="card accent-border" style="border-radius:10px; padding:12px 14px;">
+            <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:6px;">선형 보간 (Linear Interpolation)</div>
+            <div style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--body); line-height:1.8; background:var(--surface-soft); border-radius:6px; padding:8px 10px;">
+              <span style="color:#888;"># 18개월 딜 예시</span><br>
+              numpy.interp(18, [12, 24], [4.10, 4.20])<br>
+              <span style="color:var(--primary); font-weight:600;">→ 4.15%</span> &nbsp;<span style="color:#888;">(1y와 2y 사이 선형보간)</span>
+            </div>
+          </div>
+
+          <div style="background:var(--surface-soft); border-radius:10px; padding:11px 14px; display:flex; flex-direction:column; gap:5px;">
+            <div style="font-size:12px; font-weight:600; color:var(--ink); margin-bottom:2px;">FTP 입력 전후 화면 변화</div>
+            <div class="list-item" style="font-size:12px;">FTP <strong>미등록</strong> 상태 → 딜리스트 FTP원가율·Carry손익·순영업수익 = <code style="background:var(--surface-strong);padding:1px 4px;border-radius:3px;font-size:11px;">-</code> 표시</div>
+            <div class="list-item" style="font-size:12px;">FTP <strong>등록 완료</strong> → 전체 딜 자동 재산출, 이후 딜리스트 접근 시 반영</div>
+            <div class="list-item" style="font-size:12px;">FTP <strong>변경</strong> → 최신 날짜 기준 행만 사용 (이력 누적 보관)</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Navigation hint -->
+<div style="text-align:center; padding:16px 0 40px; color:#666; font-family:'Inter',sans-serif; font-size:12px;">
+  브라우저에서 열어 확인 · <strong>Ctrl+P → PDF 저장</strong>으로 슬라이드 추출 가능 (Chrome 권장)
+</div>
+
+</body>
+</html>

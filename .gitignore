@@ -23,3 +23,5 @@ dist/
 
 # OS
 .DS_Store
+streamlit-app/data/
+streamlit-app/static/
