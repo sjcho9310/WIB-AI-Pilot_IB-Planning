@@ -1,16 +1,13 @@
 import uuid
 import datetime
-from pathlib import Path
+import json
+import os
 
+import gspread
 import numpy as np
 import pandas as pd
-
-# ---------------------------------------------------------------------------
-# 경로
-# ---------------------------------------------------------------------------
-DATA_DIR = Path(__file__).parent / "data"
-DEALS_CSV = DATA_DIR / "deals.csv"
-FTP_CSV = DATA_DIR / "ftp.csv"
+import streamlit as st
+from google.oauth2.service_account import Credentials
 
 # ---------------------------------------------------------------------------
 # 조직 상수
@@ -63,10 +60,8 @@ YIELD_TYPE_OPTIONS = {
     "Mezzanine":     ["목표IRR", "배당수익률", "YTM", "YTC", "YTP"],
 }
 
-# FTP 적용 제외 Book (자본 미사용)
 FTP_EXEMPT_BOOKS = {"채무보증Book", "Book 미사용", "그룹펀드편입"}
 
-# FTP 만기 구간 (월 단위)
 FTP_TENOR_MONTHS = {
     "1d": 0.033, "1m": 1, "3m": 3, "6m": 6,
     "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120,
@@ -75,7 +70,7 @@ FTP_TENOR_KEYS = list(FTP_TENOR_MONTHS.keys())
 FTP_TENOR_VALUES = list(FTP_TENOR_MONTHS.values())
 
 # ---------------------------------------------------------------------------
-# CSV 컬럼 정의
+# 컬럼 정의
 # ---------------------------------------------------------------------------
 DEAL_COLUMNS = [
     "deal_id", "트랜치번호", "부문", "본부", "부서", "최초작성일", "입력일",
@@ -90,17 +85,54 @@ DEAL_COLUMNS = [
 FTP_COLUMNS = ["날짜", "book_type", "1d", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y"]
 
 # ---------------------------------------------------------------------------
-# 딜 CSV 함수
+# Google Sheets 연결
 # ---------------------------------------------------------------------------
-def ensure_csv():
-    DATA_DIR.mkdir(exist_ok=True)
-    if not DEALS_CSV.exists():
-        pd.DataFrame(columns=DEAL_COLUMNS).to_csv(DEALS_CSV, index=False)
+_SCOPES = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive",
+]
 
 
+@st.cache_resource
+def _get_spreadsheet():
+    creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+    creds = Credentials.from_service_account_info(creds_dict, scopes=_SCOPES)
+    client = gspread.authorize(creds)
+    return client.open_by_key(os.environ["SHEET_ID"])
+
+
+def _get_or_create_ws(name: str, columns: list) -> gspread.Worksheet:
+    ss = _get_spreadsheet()
+    try:
+        ws = ss.worksheet(name)
+    except gspread.WorksheetNotFound:
+        ws = ss.add_worksheet(title=name, rows=1000, cols=len(columns))
+    if not ws.get_all_values():
+        ws.append_row(columns)
+    return ws
+
+
+def _to_str(val) -> str:
+    """NaN/None을 빈 문자열로 변환"""
+    if val is None:
+        return ""
+    try:
+        if np.isnan(float(val)) if isinstance(val, (int, float)) else False:
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(val)
+
+
+# ---------------------------------------------------------------------------
+# 딜 함수
+# ---------------------------------------------------------------------------
 def load_deals() -> pd.DataFrame:
-    ensure_csv()
-    df = pd.read_csv(DEALS_CSV, dtype=str)
+    ws = _get_or_create_ws("deals", DEAL_COLUMNS)
+    data = ws.get_all_records(expected_headers=DEAL_COLUMNS)
+    if not data:
+        return pd.DataFrame(columns=DEAL_COLUMNS)
+    df = pd.DataFrame(data)
     for col in ["전체딜규모", "당사주선/인수규모", "당사투자금액", "투자수익률", "선취수수료금액"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -112,11 +144,9 @@ def load_deals() -> pd.DataFrame:
 
 
 def append_deal(rows: list[dict]):
-    """rows: 단일 Deal이면 1개, 복합 Deal이면 N개 dict 리스트"""
-    ensure_csv()
-    existing = load_deals()
-    new_df = pd.DataFrame(rows, columns=DEAL_COLUMNS)
-    pd.concat([existing, new_df], ignore_index=True).to_csv(DEALS_CSV, index=False)
+    ws = _get_or_create_ws("deals", DEAL_COLUMNS)
+    for row in rows:
+        ws.append_row([_to_str(row.get(col, "")) for col in DEAL_COLUMNS])
 
 
 def filter_by_view(df: pd.DataFrame, ss: dict) -> pd.DataFrame:
@@ -128,35 +158,35 @@ def filter_by_view(df: pd.DataFrame, ss: dict) -> pd.DataFrame:
     return df[df["부서"] == ss.get("selected_department")]
 
 
-def update_deals(edited_df: pd.DataFrame, ss: dict):
-    """현재 조직 범위 행을 edited_df로 교체"""
+def update_deals(edited_df: pd.DataFrame, ss_state: dict):
     full = load_deals()
-    level = ss.get("view_level")
+    level = ss_state.get("view_level")
     if level == "all":
         mask = pd.Series([True] * len(full), index=full.index)
     elif level == "division":
-        mask = full["본부"] == ss.get("selected_division")
+        mask = full["본부"] == ss_state.get("selected_division")
     else:
-        mask = full["부서"] == ss.get("selected_department")
+        mask = full["부서"] == ss_state.get("selected_department")
 
     keep = full[~mask]
     save_cols = [c for c in DEAL_COLUMNS if c in edited_df.columns]
-    save_df = edited_df[save_cols]
-    pd.concat([keep, save_df], ignore_index=True).to_csv(DEALS_CSV, index=False)
+    result = pd.concat([keep, edited_df[save_cols]], ignore_index=True)
+
+    ws = _get_or_create_ws("deals", DEAL_COLUMNS)
+    ws.clear()
+    clean = result.fillna("").astype(str)
+    ws.update([DEAL_COLUMNS] + clean.values.tolist())
 
 
 # ---------------------------------------------------------------------------
-# FTP CSV 함수
+# FTP 함수
 # ---------------------------------------------------------------------------
-def ensure_ftp_csv():
-    DATA_DIR.mkdir(exist_ok=True)
-    if not FTP_CSV.exists():
-        pd.DataFrame(columns=FTP_COLUMNS).to_csv(FTP_CSV, index=False)
-
-
 def load_ftp() -> pd.DataFrame:
-    ensure_ftp_csv()
-    df = pd.read_csv(FTP_CSV, dtype=str)
+    ws = _get_or_create_ws("ftp", FTP_COLUMNS)
+    data = ws.get_all_records(expected_headers=FTP_COLUMNS)
+    if not data:
+        return pd.DataFrame(columns=FTP_COLUMNS)
+    df = pd.DataFrame(data)
     for col in FTP_TENOR_KEYS:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -164,13 +194,10 @@ def load_ftp() -> pd.DataFrame:
 
 
 def append_ftp(date: str, book_type: str, rates: dict):
-    """rates: {"1d": float, "1m": float, ...}"""
-    ensure_ftp_csv()
-    existing = load_ftp()
+    ws = _get_or_create_ws("ftp", FTP_COLUMNS)
     row = {"날짜": date, "book_type": book_type}
     row.update(rates)
-    new_df = pd.DataFrame([row], columns=FTP_COLUMNS)
-    pd.concat([existing, new_df], ignore_index=True).to_csv(FTP_CSV, index=False)
+    ws.append_row([_to_str(row.get(col, "")) for col in FTP_COLUMNS])
 
 
 def get_latest_ftp(book_type: str) -> dict | None:
@@ -197,7 +224,6 @@ def get_ftp_rate(book_type: str, maturity_months: float) -> float | None:
 # 순영업수익 산출
 # ---------------------------------------------------------------------------
 def _holding_months(기표예정일_str, 투자기간만기, current_year: int) -> float:
-    """당해 회계연도 보유월수 산출"""
     try:
         maturity = float(투자기간만기) if 투자기간만기 else 0
     except (ValueError, TypeError):
@@ -217,7 +243,6 @@ def _holding_months(기표예정일_str, 투자기간만기, current_year: int) 
         return 0.0
     if dt.year < current_year:
         return min(maturity, 12.0)
-    # 당해연도 내 기표
     remaining_days = (year_end - dt).days
     remaining_months = remaining_days / 30.44
     return min(maturity, remaining_months)
@@ -247,7 +272,6 @@ def calc_net_revenue(row: dict | pd.Series, current_year: int = None) -> dict:
         return {"수수료수익": 수수료금액, "이자수익": nan, "자본원가": nan, "Carry손익": nan, "순영업수익": nan}
 
     holding = _holding_months(기표일, 만기, current_year)
-
     이자수익 = 투자금액 * (수익률 / 100) * (holding / 12)
 
     if book in FTP_EXEMPT_BOOKS:

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: ib-sales-app
+    env: python
+    buildCommand: pip install -r streamlit-app/requirements.txt
+    startCommand: streamlit run streamlit-app/app.py --server.address=0.0.0.0 --server.port=$PORT --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false
+    envVars:
+      - key: GOOGLE_CREDENTIALS
+        sync: false
+      - key: SHEET_ID
+        sync: false
+      - key: APP_PASSWORD
+        sync: false

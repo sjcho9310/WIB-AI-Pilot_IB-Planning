@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import pandas as pd
 import streamlit as st
@@ -6,6 +7,26 @@ import streamlit as st
 import data_utils as du
 
 st.set_page_config(page_title="IB 영업현황 관리", layout="wide")
+
+# ---------------------------------------------------------------------------
+# 비밀번호 인증
+# ---------------------------------------------------------------------------
+def _check_password():
+    if st.session_state.get("authenticated"):
+        return True
+    st.title("IB 영업현황 관리 시스템")
+    st.markdown("---")
+    pw = st.text_input("비밀번호를 입력하세요", type="password")
+    if st.button("로그인"):
+        if pw == os.environ.get("APP_PASSWORD", ""):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("비밀번호가 틀렸습니다.")
+    return False
+
+if not _check_password():
+    st.stop()
 
 # ---------------------------------------------------------------------------
 # session_state 초기화
