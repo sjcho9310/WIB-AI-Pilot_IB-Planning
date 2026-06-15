@@ -109,8 +109,10 @@ def _get_or_create_ws(name: str, columns: list) -> gspread.Worksheet:
         ws = ss.worksheet(name)
     except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title=name, rows=1000, cols=len(columns))
-    if not ws.row_values(1):
-        ws.append_row(columns)
+    first_row = ws.row_values(1)
+    # 첫 행이 없거나 헤더가 아닌 데이터면 헤더를 1행에 삽입
+    if not first_row or first_row[0] != columns[0]:
+        ws.insert_row(columns, 1)
     return ws
 
 
