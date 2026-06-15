@@ -109,9 +109,25 @@ def _get_or_create_ws(name: str, columns: list) -> gspread.Worksheet:
         ws = ss.worksheet(name)
     except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title=name, rows=1000, cols=len(columns))
-    if not ws.get_all_values():
+    if not ws.row_values(1):
         ws.append_row(columns)
     return ws
+
+
+def _ws_to_df(ws: gspread.Worksheet, columns: list) -> pd.DataFrame:
+    """시트 전체를 읽어 DataFrame으로 반환. 헤더 없으면 빈 DataFrame."""
+    rows = ws.get_all_values()
+    if not rows or not rows[0]:
+        return pd.DataFrame(columns=columns)
+    headers = rows[0]
+    data = rows[1:]
+    if not data:
+        return pd.DataFrame(columns=columns)
+    df = pd.DataFrame(data, columns=headers)
+    for col in columns:
+        if col not in df.columns:
+            df[col] = ""
+    return df
 
 
 def _to_str(val) -> str:
@@ -133,10 +149,7 @@ ADMIN_DEPT = "IB사업추진부"
 
 def load_users() -> pd.DataFrame:
     ws = _get_or_create_ws("users", USERS_COLUMNS)
-    data = ws.get_all_records(expected_headers=USERS_COLUMNS)
-    if not data:
-        return pd.DataFrame(columns=USERS_COLUMNS)
-    return pd.DataFrame(data)
+    return _ws_to_df(ws, USERS_COLUMNS)
 
 
 def get_user_info(이름: str, 사번: str) -> dict | None:
@@ -168,10 +181,7 @@ def get_user_info(이름: str, 사번: str) -> dict | None:
 # ---------------------------------------------------------------------------
 def load_deals() -> pd.DataFrame:
     ws = _get_or_create_ws("deals", DEAL_COLUMNS)
-    data = ws.get_all_records(expected_headers=DEAL_COLUMNS)
-    if not data:
-        return pd.DataFrame(columns=DEAL_COLUMNS)
-    df = pd.DataFrame(data)
+    df = _ws_to_df(ws, DEAL_COLUMNS)
     for col in ["전체딜규모", "당사주선/인수규모", "당사투자금액", "투자수익률", "선취수수료금액"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -222,10 +232,7 @@ def update_deals(edited_df: pd.DataFrame, ss_state: dict):
 # ---------------------------------------------------------------------------
 def load_ftp() -> pd.DataFrame:
     ws = _get_or_create_ws("ftp", FTP_COLUMNS)
-    data = ws.get_all_records(expected_headers=FTP_COLUMNS)
-    if not data:
-        return pd.DataFrame(columns=FTP_COLUMNS)
-    df = pd.DataFrame(data)
+    df = _ws_to_df(ws, FTP_COLUMNS)
     for col in FTP_TENOR_KEYS:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
