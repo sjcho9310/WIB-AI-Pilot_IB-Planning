@@ -72,6 +72,8 @@ FTP_TENOR_VALUES = list(FTP_TENOR_MONTHS.values())
 # ---------------------------------------------------------------------------
 # 컬럼 정의
 # ---------------------------------------------------------------------------
+USERS_COLUMNS = ["이름", "사번", "소속"]
+
 DEAL_COLUMNS = [
     "deal_id", "트랜치번호", "부문", "본부", "부서", "최초작성일", "입력일",
     "딜명", "상세내용/진행상황", "투자구조", "사업유형", "CIB여부", "모험자본여부",
@@ -122,6 +124,43 @@ def _to_str(val) -> str:
     except (TypeError, ValueError):
         pass
     return str(val)
+
+
+# ---------------------------------------------------------------------------
+# 사용자 인증 함수
+# ---------------------------------------------------------------------------
+ADMIN_DEPT = "IB사업추진부"
+
+def load_users() -> pd.DataFrame:
+    ws = _get_or_create_ws("users", USERS_COLUMNS)
+    data = ws.get_all_records(expected_headers=USERS_COLUMNS)
+    if not data:
+        return pd.DataFrame(columns=USERS_COLUMNS)
+    return pd.DataFrame(data)
+
+
+def get_user_info(이름: str, 사번: str) -> dict | None:
+    """이름+사번으로 사용자 조회. 반환: {"role", "division", "department", "소속"} or None"""
+    df = load_users()
+    if df.empty:
+        return None
+    mask = (
+        (df["이름"].astype(str).str.strip() == 이름.strip()) &
+        (df["사번"].astype(str).str.strip() == 사번.strip())
+    )
+    matched = df[mask]
+    if matched.empty:
+        return None
+    소속 = str(matched.iloc[0]["소속"]).strip()
+
+    if 소속 == ADMIN_DEPT:
+        return {"role": "관리자", "division": None, "department": None, "소속": 소속}
+
+    for division, departments in ORG.items():
+        if 소속 in departments:
+            return {"role": "영업", "division": division, "department": 소속, "소속": 소속}
+
+    return None  # 등록되지 않은 소속
 
 
 # ---------------------------------------------------------------------------

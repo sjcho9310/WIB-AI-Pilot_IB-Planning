@@ -1,5 +1,4 @@
 import datetime
-import os
 
 import pandas as pd
 import streamlit as st
@@ -9,31 +8,12 @@ import data_utils as du
 st.set_page_config(page_title="IB 영업현황 관리", layout="wide")
 
 # ---------------------------------------------------------------------------
-# 비밀번호 인증
-# ---------------------------------------------------------------------------
-def _check_password():
-    if st.session_state.get("authenticated"):
-        return True
-    st.title("IB 영업현황 관리 시스템")
-    st.markdown("---")
-    pw = st.text_input("비밀번호를 입력하세요", type="password")
-    if st.button("로그인"):
-        if pw == os.environ.get("APP_PASSWORD", ""):
-            st.session_state.authenticated = True
-            st.rerun()
-        else:
-            st.error("비밀번호가 틀렸습니다.")
-    return False
-
-if not _check_password():
-    st.stop()
-
-# ---------------------------------------------------------------------------
 # session_state 초기화
 # ---------------------------------------------------------------------------
 DEFAULTS = {
     "current_page":        "org_select",
     "role":                None,
+    "user_name":           None,
     "view_level":          None,
     "selected_division":   None,
     "selected_department": None,
@@ -69,61 +49,44 @@ def render_org_select():
     step = st.session_state.org_step
 
     if step == "top":
-        st.subheader("접속 유형을 선택하세요")
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("📊 영업조직", use_container_width=True):
-                st.session_state.role = "영업"
-                st.session_state.org_step = "division"
-                st.rerun()
-        with c2:
-            if st.button("🔑 관리자", use_container_width=True):
-                st.session_state.role = "관리자"
-                st.session_state.org_step = "division"
-                st.rerun()
+        st.subheader("이름과 사번을 입력하세요")
+        이름 = st.text_input("이름")
+        사번 = st.text_input("사번")
+        if st.button("로그인", type="primary"):
+            if not 이름.strip() or not 사번.strip():
+                st.error("이름과 사번을 모두 입력하세요.")
+            else:
+                info = du.get_user_info(이름.strip(), 사번.strip())
+                if info is None:
+                    st.error("등록된 사용자가 아닙니다. 관리자에게 문의하세요.")
+                else:
+                    st.session_state.user_name = 이름.strip()
+                    st.session_state.role = info["role"]
+                    if info["role"] == "영업":
+                        st.session_state.selected_division   = info["division"]
+                        st.session_state.selected_department = info["department"]
+                        st.session_state.view_level          = "department"
+                        st.session_state.current_page        = "home"
+                    else:
+                        st.session_state.org_step = "division"
+                    st.rerun()
 
     elif step == "division":
-        role = st.session_state.role
-        st.subheader("본부를 선택하세요")
+        name = st.session_state.get("user_name", "")
+        st.subheader(f"{name}님, 조회할 범위를 선택하세요")
         divisions = list(du.ORG.keys())
         cols = st.columns(len(divisions))
         for col, div in zip(cols, divisions):
             with col:
                 if st.button(div, use_container_width=True):
                     st.session_state.selected_division = div
-                    if role == "관리자":
-                        st.session_state.view_level = "division"
-                        st.session_state.current_page = "home"
-                    else:
-                        st.session_state.org_step = "department"
-                    st.rerun()
-        if role == "관리자":
-            st.markdown("---")
-            if st.button("🏢 IB부문 통합 (전체)", use_container_width=True):
-                st.session_state.view_level = "all"
-                st.session_state.current_page = "home"
-                st.rerun()
-        else:
-            st.markdown("---")
-            if st.button("← 처음으로"):
-                st.session_state.org_step = "top"
-                st.rerun()
-
-    elif step == "department":
-        div = st.session_state.selected_division
-        st.subheader(f"{div} — 부서를 선택하세요")
-        depts = du.ORG.get(div, [])
-        cols = st.columns(min(len(depts), 4))
-        for i, dept in enumerate(depts):
-            with cols[i % 4]:
-                if st.button(dept, use_container_width=True):
-                    st.session_state.selected_department = dept
-                    st.session_state.view_level = "department"
+                    st.session_state.view_level = "division"
                     st.session_state.current_page = "home"
                     st.rerun()
         st.markdown("---")
-        if st.button("← 본부 선택으로"):
-            st.session_state.org_step = "division"
+        if st.button("🏢 IB부문 통합 (전체)", use_container_width=True):
+            st.session_state.view_level = "all"
+            st.session_state.current_page = "home"
             st.rerun()
 
 
