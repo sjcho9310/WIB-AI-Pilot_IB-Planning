@@ -60,6 +60,9 @@ def render_org_select():
                 if info is None:
                     st.error("등록된 사용자가 아닙니다. 관리자에게 문의하세요.")
                 else:
+                    # 이전 세션 값 초기화
+                    for k in ["role", "view_level", "selected_division", "selected_department"]:
+                        st.session_state.pop(k, None)
                     st.session_state.user_name = 이름.strip()
                     st.session_state.role = info["role"]
                     if info["role"] == "영업":
@@ -101,10 +104,10 @@ def render_home():
     view = st.session_state.view_level
     if view == "all":
         scope = "IB부문 통합"
-    elif dept:
+    elif view == "division":
+        scope = f"{div} 본부"
+    elif view == "department":
         scope = dept
-    elif div:
-        scope = div
     else:
         scope = "IB부문 전체"
     st.title(f"IB 영업현황 관리 — {scope}")
