@@ -655,49 +655,47 @@ def render_stats():
                            .reindex(dept_list, fill_value=0))
             st.altair_chart(_hbar(dept_size, "억원"), use_container_width=True)
 
+    def _agg_summary(src_df, group_col, reindex_list):
+        raw = src_df.groupby(group_col).agg(
+            딜수=("deal_id", "nunique"),
+            주선인수규모합계=("당사주선/인수규모", "sum"),
+            당사투자금액합계=("당사투자금액", "sum"),
+            선취수수료합계=("선취수수료금액", "sum"),
+            순영업수익합계=("순영업수익", "sum"),
+        ).reindex(reindex_list).fillna(0)
+        fmt = raw.copy().astype(object)
+        fmt["딜수"]           = raw["딜수"].apply(lambda x: "-" if x == 0 else f"{int(x):,}")
+        fmt["주선인수규모합계"] = raw["주선인수규모합계"].apply(lambda x: "-" if x == 0 else f"{x:,.0f}")
+        fmt["당사투자금액합계"] = raw["당사투자금액합계"].apply(lambda x: "-" if x == 0 else f"{x:,.0f}")
+        fmt["선취수수료합계"]   = raw["선취수수료합계"].apply(lambda x: "-" if x == 0 else f"{x:.1f}")
+        fmt["순영업수익합계"]   = raw["순영업수익합계"].apply(lambda x: "-" if pd.isna(x) or x == 0 else f"{x:.1f}")
+        return fmt
+
+    _summary_col_config = {
+        "딜수":             st.column_config.TextColumn("딜수"),
+        "주선인수규모합계":  st.column_config.TextColumn("주선/인수규모합계(억원)"),
+        "당사투자금액합계":  st.column_config.TextColumn("당사투자금액합계(억원)"),
+        "선취수수료합계":    st.column_config.TextColumn("선취수수료합계(억원)"),
+        "순영업수익합계":    st.column_config.TextColumn("순영업수익합계(억원)"),
+    }
+
     st.markdown("---")
     st.subheader("진행단계별 요약")
-    summary = df.groupby("진행단계").agg(
-        딜수=("deal_id", "nunique"),
-        주선인수규모합계=("당사주선/인수규모", "sum"),
-        당사투자금액합계=("당사투자금액", "sum"),
-        선취수수료합계=("선취수수료금액", "sum"),
-        순영업수익합계=("순영업수익", "sum"),
-    ).reindex(du.진행단계).fillna(0)
-    _summary_col_config = {
-        "딜수":             st.column_config.NumberColumn("딜수", format="%d"),
-        "주선인수규모합계":  st.column_config.NumberColumn("주선/인수규모합계(억원)", format="%,.0f"),
-        "당사투자금액합계":  st.column_config.NumberColumn("당사투자금액합계(억원)", format="%,.0f"),
-        "선취수수료합계":    st.column_config.NumberColumn("선취수수료합계(억원)", format="%.1f"),
-        "순영업수익합계":    st.column_config.NumberColumn("순영업수익합계(억원)", format="%.1f"),
-    }
-    st.dataframe(summary, use_container_width=True, column_config=_summary_col_config)
+    st.dataframe(_agg_summary(df, "진행단계", du.진행단계),
+                 use_container_width=True, column_config=_summary_col_config)
 
     if ss.get("view_level") == "division":
         st.markdown("---")
         st.subheader("부서별 요약")
         dept_list = du.ORG.get(ss.get("selected_division", ""), [])
-        dept_summary = df.groupby("부서").agg(
-            딜수=("deal_id", "nunique"),
-            주선인수규모합계=("당사주선/인수규모", "sum"),
-            당사투자금액합계=("당사투자금액", "sum"),
-            선취수수료합계=("선취수수료금액", "sum"),
-            순영업수익합계=("순영업수익", "sum"),
-        ).reindex(dept_list).fillna(0)
-        st.dataframe(dept_summary, use_container_width=True, column_config=_summary_col_config)
+        st.dataframe(_agg_summary(df, "부서", dept_list),
+                     use_container_width=True, column_config=_summary_col_config)
 
     if ss.get("view_level") == "all":
         st.markdown("---")
         st.subheader("본부별 요약")
-        div_list = list(du.ORG.keys())
-        div_summary = df.groupby("본부").agg(
-            딜수=("deal_id", "nunique"),
-            주선인수규모합계=("당사주선/인수규모", "sum"),
-            당사투자금액합계=("당사투자금액", "sum"),
-            선취수수료합계=("선취수수료금액", "sum"),
-            순영업수익합계=("순영업수익", "sum"),
-        ).reindex(div_list).fillna(0)
-        st.dataframe(div_summary, use_container_width=True, column_config=_summary_col_config)
+        st.dataframe(_agg_summary(df, "본부", list(du.ORG.keys())),
+                     use_container_width=True, column_config=_summary_col_config)
 
 
 # ---------------------------------------------------------------------------
