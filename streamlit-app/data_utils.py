@@ -181,6 +181,7 @@ def get_user_info(이름: str, 사번: str) -> dict | None:
 # ---------------------------------------------------------------------------
 # 딜 함수
 # ---------------------------------------------------------------------------
+@st.cache_data(ttl=60)
 def load_deals() -> pd.DataFrame:
     ws = _get_or_create_ws("deals", DEAL_COLUMNS)
     df = _ws_to_df(ws, DEAL_COLUMNS)
@@ -198,6 +199,7 @@ def append_deal(rows: list[dict]):
     ws = _get_or_create_ws("deals", DEAL_COLUMNS)
     for row in rows:
         ws.append_row([_to_str(row.get(col, "")) for col in DEAL_COLUMNS])
+    load_deals.clear()
 
 
 def filter_by_view(df: pd.DataFrame, ss: dict) -> pd.DataFrame:
@@ -227,11 +229,13 @@ def update_deals(edited_df: pd.DataFrame, ss_state: dict):
     ws.clear()
     clean = result.fillna("").astype(str)
     ws.update([DEAL_COLUMNS] + clean.values.tolist())
+    load_deals.clear()
 
 
 # ---------------------------------------------------------------------------
 # FTP 함수
 # ---------------------------------------------------------------------------
+@st.cache_data(ttl=60)
 def load_ftp() -> pd.DataFrame:
     ws = _get_or_create_ws("ftp", FTP_COLUMNS)
     df = _ws_to_df(ws, FTP_COLUMNS)
@@ -246,6 +250,7 @@ def append_ftp(date: str, book_type: str, rates: dict):
     row = {"날짜": date, "book_type": book_type}
     row.update(rates)
     ws.append_row([_to_str(row.get(col, "")) for col in FTP_COLUMNS])
+    load_ftp.clear()
 
 
 def get_latest_ftp(book_type: str) -> dict | None:
@@ -296,7 +301,17 @@ def _holding_months(기표예정일_str, 투자기간만기, current_year: int) 
     return min(maturity, remaining_months)
 
 
-def calc_net_revenue(row: dict | pd.Series, current_year: int = None) -> dict:
+def _get_ftp_rate_from_cache(ftp_book: str, maturity_months: float, ftp_cache: dict) -> float | None:
+    rates_dict = ftp_cache.get(ftp_book)
+    if rates_dict is None:
+        return None
+    rate_values = [rates_dict[k] for k in FTP_TENOR_KEYS]
+    if any(np.isnan(v) for v in rate_values):
+        return None
+    return float(np.interp(maturity_months, FTP_TENOR_VALUES, rate_values))
+
+
+def calc_net_revenue(row: dict | pd.Series, current_year: int = None, ftp_cache: dict = None) -> dict:
     if current_year is None:
         current_year = datetime.date.today().year
 
@@ -326,7 +341,10 @@ def calc_net_revenue(row: dict | pd.Series, current_year: int = None) -> dict:
         자본원가 = 0.0
     else:
         ftp_book = "종금Book" if book == "종금Book" else "IB Book"
-        ftp_rate = get_ftp_rate(ftp_book, 만기)
+        if ftp_cache is not None:
+            ftp_rate = _get_ftp_rate_from_cache(ftp_book, 만기, ftp_cache)
+        else:
+            ftp_rate = get_ftp_rate(ftp_book, 만기)
         if ftp_rate is None:
             return {"수수료수익": 수수료금액, "이자수익": 이자수익, "자본원가": nan, "Carry손익": nan, "순영업수익": nan}
         자본원가 = 투자금액 * (ftp_rate / 100) * (holding / 12)
@@ -338,7 +356,13 @@ def calc_net_revenue(row: dict | pd.Series, current_year: int = None) -> dict:
 
 def add_revenue_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    results = [calc_net_revenue(row) for _, row in df.iterrows()]
+    # FTP 데이터를 한 번만 로드해서 딜 행마다 반복 API 호출 방지
+    ftp_cache = {
+        "종금Book": get_latest_ftp("종금Book"),
+        "IB Book": get_latest_ftp("IB Book"),
+    }
+    current_year = datetime.date.today().year
+    results = [calc_net_revenue(row, current_year=current_year, ftp_cache=ftp_cache) for _, row in df.iterrows()]
     df["수수료수익"] = [r["수수료수익"] for r in results]
     df["이자수익"] = [r["이자수익"] for r in results]
     df["자본원가"] = [r["자본원가"] for r in results]
