@@ -413,7 +413,9 @@ def render_deal_list():
     # 트랜치 표시 컬럼 (당사주선/투자 트랜치 값 표시)
     df["트랜치"] = df["당사주선/투자 트랜치"].fillna("").apply(lambda x: x.strip() if x.strip() else "-")
 
-    # FTP 적용 유형 및 원가율 컬럼
+    # FTP 적용 유형 및 원가율 컬럼 (캐시된 데이터 한 번만 조회)
+    _ftp_latest = {bt: du.get_latest_ftp(bt) for bt in ["종금Book", "IB Book"]}
+
     def _ftp_info(row):
         book = str(row.get("리소스Book유형") or "")
         if book in du.FTP_EXEMPT_BOOKS:
@@ -425,7 +427,7 @@ def render_deal_list():
             return ftp_book + " FTP", "-"
         if m <= 0:
             return ftp_book + " FTP", "-"
-        rate = du.get_ftp_rate(ftp_book, m)
+        rate = du._get_ftp_rate_from_cache(ftp_book, m, _ftp_latest)
         return ftp_book + " FTP", (f"{rate:.2f}" if rate is not None else "-")
 
     ftp_cols = [_ftp_info(row) for _, row in df.iterrows()]
@@ -713,12 +715,13 @@ def render_ftp_admin():
 
     for tab, book_type in zip([tab1, tab2], ["종금Book", "IB Book"]):
         with tab:
+            tenor_keys = du.BOOK_TENOR_MAP[book_type][0]
             latest = du.get_latest_ftp(book_type)
             if latest:
                 st.subheader("현재 적용 FTP")
                 st.dataframe(
                     pd.DataFrame([latest], index=["금리(%)"],
-                                 columns=du.FTP_TENOR_KEYS),
+                                 columns=tenor_keys),
                     use_container_width=True,
                 )
             else:
@@ -730,10 +733,9 @@ def render_ftp_admin():
             with st.form(f"ftp_form_{book_type}"):
                 기준일 = st.date_input("기준 날짜", value=datetime.date.today())
                 st.markdown("**만기별 금리 (%) 입력**")
-                c1, c2, c3 = st.columns(3)
-                cycle = [c1, c2, c3, c1, c2, c3, c1, c2, c3]
+                input_cols = st.columns(len(tenor_keys))
                 tenor_inputs = {}
-                for col, tenor in zip(cycle, du.FTP_TENOR_KEYS):
+                for col, tenor in zip(input_cols, tenor_keys):
                     default_val = float(latest.get(tenor, 3.0)) if latest else 3.0
                     tenor_inputs[tenor] = col.number_input(
                         tenor, min_value=0.0, max_value=30.0,
@@ -754,8 +756,9 @@ def render_ftp_admin():
             )
             if not hist.empty:
                 st.subheader("입력 이력")
+                avail = ["날짜"] + [k for k in tenor_keys if k in hist.columns]
                 st.dataframe(
-                    hist[["날짜"] + du.FTP_TENOR_KEYS].reset_index(drop=True),
+                    hist[avail].reset_index(drop=True),
                     use_container_width=True,
                 )
 

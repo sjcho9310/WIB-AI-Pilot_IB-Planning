@@ -62,12 +62,21 @@ YIELD_TYPE_OPTIONS = {
 
 FTP_EXEMPT_BOOKS = {"채무보증Book", "Book 미사용", "그룹펀드편입"}
 
-FTP_TENOR_MONTHS = {
-    "1d": 0.033, "1m": 1, "3m": 3, "6m": 6,
-    "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120,
+# 종금Book FTP 만기 구간: 3M이하 ~ 10y (7구간)
+종금Book_TENOR_KEYS   = ["3M이하", "6m", "1y", "2y", "3y", "5y", "10y"]
+종금Book_TENOR_MONTHS = [3.0, 6.0, 12.0, 24.0, 36.0, 60.0, 120.0]
+
+# IB Book FTP 만기 구간: 3M이하 ~ 3Y (4구간, 3Y 초과는 3Y 적용)
+IB_BOOK_TENOR_KEYS   = ["3M이하", "1Y", "2Y", "3Y"]
+IB_BOOK_TENOR_MONTHS = [3.0, 12.0, 24.0, 36.0]
+
+BOOK_TENOR_MAP = {
+    "종금Book": (종금Book_TENOR_KEYS, 종금Book_TENOR_MONTHS),
+    "IB Book":  (IB_BOOK_TENOR_KEYS,  IB_BOOK_TENOR_MONTHS),
 }
-FTP_TENOR_KEYS = list(FTP_TENOR_MONTHS.keys())
-FTP_TENOR_VALUES = list(FTP_TENOR_MONTHS.values())
+
+# 시트 저장용 전체 테너 컬럼 (두 book의 합집합)
+_FTP_TENOR_ALL = 종금Book_TENOR_KEYS + [k for k in IB_BOOK_TENOR_KEYS if k not in 종금Book_TENOR_KEYS]
 
 # ---------------------------------------------------------------------------
 # 컬럼 정의
@@ -84,7 +93,7 @@ DEAL_COLUMNS = [
     "투자기간만기", "BRR등급",
 ]
 
-FTP_COLUMNS = ["날짜", "book_type", "1d", "1m", "3m", "6m", "1y", "2y", "3y", "5y", "10y"]
+FTP_COLUMNS = ["날짜", "book_type"] + _FTP_TENOR_ALL
 
 # ---------------------------------------------------------------------------
 # Google Sheets 연결
@@ -109,9 +118,14 @@ def _get_or_create_ws(name: str, columns: list) -> gspread.Worksheet:
         ws = ss.worksheet(name)
     except gspread.WorksheetNotFound:
         ws = ss.add_worksheet(title=name, rows=1000, cols=len(columns))
+        ws.insert_row(columns, 1)
+        return ws
     first_row = ws.row_values(1)
-    # 첫 행이 없거나 헤더가 아닌 데이터면 헤더를 1행에 삽입
-    if not first_row or first_row[0] != columns[0]:
+    if not first_row:
+        ws.insert_row(columns, 1)
+    elif first_row[:len(columns)] != columns:
+        # 헤더 구조 변경 시 시트 초기화 후 새 헤더로 재생성 (FTP 등 구조 변경 대응)
+        ws.clear()
         ws.insert_row(columns, 1)
     return ws
 
@@ -239,7 +253,7 @@ def update_deals(edited_df: pd.DataFrame, ss_state: dict):
 def load_ftp() -> pd.DataFrame:
     ws = _get_or_create_ws("ftp", FTP_COLUMNS)
     df = _ws_to_df(ws, FTP_COLUMNS)
-    for col in FTP_TENOR_KEYS:
+    for col in _FTP_TENOR_ALL:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
@@ -260,17 +274,22 @@ def get_latest_ftp(book_type: str) -> dict | None:
         return None
     df = df.sort_values("날짜", ascending=False)
     row = df.iloc[0]
-    return {k: row[k] for k in FTP_TENOR_KEYS}
+    tenor_keys = BOOK_TENOR_MAP.get(book_type, (종금Book_TENOR_KEYS, []))[0]
+    return {k: row.get(k, float("nan")) for k in tenor_keys}
 
 
 def get_ftp_rate(book_type: str, maturity_months: float) -> float | None:
     rates_dict = get_latest_ftp(book_type)
     if rates_dict is None:
         return None
-    rate_values = [rates_dict[k] for k in FTP_TENOR_KEYS]
+    tenor_keys, tenor_months = BOOK_TENOR_MAP.get(book_type, (종금Book_TENOR_KEYS, 종금Book_TENOR_MONTHS))
+    try:
+        rate_values = [float(rates_dict[k]) for k in tenor_keys]
+    except (KeyError, TypeError, ValueError):
+        return None
     if any(np.isnan(v) for v in rate_values):
         return None
-    return float(np.interp(maturity_months, FTP_TENOR_VALUES, rate_values))
+    return float(np.interp(maturity_months, tenor_months, rate_values))
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +324,14 @@ def _get_ftp_rate_from_cache(ftp_book: str, maturity_months: float, ftp_cache: d
     rates_dict = ftp_cache.get(ftp_book)
     if rates_dict is None:
         return None
-    rate_values = [rates_dict[k] for k in FTP_TENOR_KEYS]
+    tenor_keys, tenor_months = BOOK_TENOR_MAP.get(ftp_book, (종금Book_TENOR_KEYS, 종금Book_TENOR_MONTHS))
+    try:
+        rate_values = [float(rates_dict[k]) for k in tenor_keys]
+    except (KeyError, TypeError, ValueError):
+        return None
     if any(np.isnan(v) for v in rate_values):
         return None
-    return float(np.interp(maturity_months, FTP_TENOR_VALUES, rate_values))
+    return float(np.interp(maturity_months, tenor_months, rate_values))
 
 
 def calc_net_revenue(row: dict | pd.Series, current_year: int = None, ftp_cache: dict = None) -> dict:
