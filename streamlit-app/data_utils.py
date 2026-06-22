@@ -272,8 +272,9 @@ def get_latest_ftp(book_type: str) -> dict | None:
     df = df[df["book_type"] == book_type].copy()
     if df.empty:
         return None
-    df = df.sort_values("날짜", ascending=False)
-    row = df.iloc[0]
+    # 가장 최근 날짜 중 마지막으로 입력된 행 사용 (같은 날짜 중복 입력 시 최후 행 기준)
+    max_date = df["날짜"].max()
+    row = df[df["날짜"] == max_date].iloc[-1]
     tenor_keys = BOOK_TENOR_MAP.get(book_type, (종금Book_TENOR_KEYS, []))[0]
     return {k: row.get(k, float("nan")) for k in tenor_keys}
 

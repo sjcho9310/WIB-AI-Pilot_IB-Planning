@@ -751,14 +751,12 @@ def render_ftp_admin():
 
             st.markdown("---")
             ftp_df = du.load_ftp()
-            hist = ftp_df[ftp_df["book_type"] == book_type].sort_values(
-                "날짜", ascending=False
-            )
+            hist = ftp_df[ftp_df["book_type"] == book_type].iloc[::-1].reset_index(drop=True)
             if not hist.empty:
                 st.subheader("입력 이력")
                 avail = ["날짜"] + [k for k in tenor_keys if k in hist.columns]
                 st.dataframe(
-                    hist[avail].reset_index(drop=True),
+                    hist[avail],
                     use_container_width=True,
                 )
 
