@@ -319,6 +319,14 @@ def render_new_deal():
 
     st.markdown("---")
 
+    tranche_fields = [
+        "투자유형", "상품유형", "리소스Book유형", "당사주선/투자 트랜치",
+        "당사주선/인수규모", "당사투자금액",
+        "투자수익률구분", "투자수익률",
+        "선취수수료구분", "선취수수료금액",
+        "투자기간만기", "BRR등급",
+    ]
+
     if 투자구조_val == "복합 Deal":
         st.subheader("트랜치별 정보")
         if "nd_selected_tranches" not in st.session_state:
@@ -328,13 +336,24 @@ def render_new_deal():
             du.당사주선투자트랜치,
             key="nd_selected_tranches",
         )
-        if len(selected_tranches) < 2:
+        tranche_count = len(selected_tranches)
+        # 트랜치 수 감소 또는 순서 변경 시 초과 인덱스 키 정리
+        prev_count = st.session_state.get("nd_prev_tranche_count", tranche_count)
+        for i in range(tranche_count + 1, prev_count + 1):
+            for f in tranche_fields:
+                st.session_state.pop(_tk(i, f), None)
+        st.session_state.nd_prev_tranche_count = tranche_count
+        if tranche_count < 2:
             st.warning("복합 Deal은 최소 2개 트랜치를 선택해야 합니다.")
         for i, tranche_type in enumerate(selected_tranches, start=1):
             render_tranche_section(i, f"트랜치 {i} — {tranche_type}", preset_tranche=tranche_type)
-        tranche_count = len(selected_tranches)
     else:
         st.subheader("투자 정보")
+        # 복합 Deal → 단일 Deal 전환 시 t2+ 잔존 키 정리
+        prev_count = st.session_state.pop("nd_prev_tranche_count", 1)
+        for i in range(2, prev_count + 1):
+            for f in tranche_fields:
+                st.session_state.pop(_tk(i, f), None)
         render_tranche_section(1, "투자 정보")
         tranche_count = 1
 
@@ -360,13 +379,6 @@ def render_new_deal():
             "기표예정일": 기표예정일_val.isoformat() if 기표예정일_val else "",
         }
 
-        tranche_fields = [
-            "투자유형", "상품유형", "리소스Book유형", "당사주선/투자 트랜치",
-            "당사주선/인수규모", "당사투자금액",
-            "투자수익률구분", "투자수익률",
-            "선취수수료구분", "선취수수료금액",
-            "투자기간만기", "BRR등급",
-        ]
         tranches = [{f: ss.get(_tk(i, f), "") for f in tranche_fields}
                     for i in range(1, int(tranche_count) + 1)]
 
