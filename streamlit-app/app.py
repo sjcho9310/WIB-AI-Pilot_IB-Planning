@@ -84,11 +84,14 @@ def render_org_select():
             with col:
                 if st.button(div, use_container_width=True):
                     st.session_state.selected_division = div
+                    st.session_state.selected_department = None
                     st.session_state.view_level = "division"
                     st.session_state.current_page = "home"
                     st.rerun()
         st.markdown("---")
         if st.button("🏢 IB부문 통합 (전체)", use_container_width=True):
+            st.session_state.selected_division = None
+            st.session_state.selected_department = None
             st.session_state.view_level = "all"
             st.session_state.current_page = "home"
             st.rerun()
