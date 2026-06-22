@@ -246,11 +246,11 @@ def update_deals(edited_df: pd.DataFrame, ss_state: dict):
 
     save_cols = [c for c in DEAL_COLUMNS if c in edited_df.columns]
 
-    # 삭제 표시된 deal_id 수집 (복합딜은 모든 트랜치 일괄 삭제)
-    delete_deal_ids: set = set()
+    # 삭제 표시된 (deal_id, 트랜치번호) 수집 — 트랜치 단위 삭제
+    delete_keys: set = set()
     if "삭제" in edited_df.columns:
-        delete_deal_ids = {
-            str(r["deal_id"])
+        delete_keys = {
+            (str(r["deal_id"]), str(r["트랜치번호"]))
             for _, r in edited_df.iterrows()
             if r.get("삭제") is True
         }
@@ -263,13 +263,13 @@ def update_deals(edited_df: pd.DataFrame, ss_state: dict):
     }
 
     # 최신 전체 데이터를 기준으로 행 단위 병합
-    # → 삭제 표시 딜은 제거, 편집된 행은 교체, 나머지는 그대로 유지
+    # → 삭제 표시 트랜치는 제거, 편집된 행은 교체, 나머지는 그대로 유지
     merged = []
     for _, row in full.iterrows():
         deal_id = str(row["deal_id"])
         key = (deal_id, str(row["트랜치번호"]))
 
-        if deal_id in delete_deal_ids:
+        if key in delete_keys:
             continue
 
         if key in edited_map:

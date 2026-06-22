@@ -522,8 +522,11 @@ def render_deal_list():
     if "삭제" in edited.columns:
         to_delete = edited[edited["삭제"] == True]
         if not to_delete.empty:
-            names = ", ".join(to_delete["딜명"].dropna().unique())
-            st.error(f"🗑️ 삭제 예정: **{names}** — 저장 버튼을 누르면 해당 딜의 모든 트랜치가 영구 삭제됩니다.")
+            lines = [
+                f"{r['딜명']} (트랜치 {r['트랜치번호']})"
+                for _, r in to_delete[["딜명", "트랜치번호"]].iterrows()
+            ]
+            st.error(f"🗑️ 삭제 예정: **{', '.join(lines)}** — 저장 버튼을 누르면 영구 삭제됩니다.")
 
     if st.button("💾 변경사항 저장", type="primary"):
         save_df = edited.drop(
