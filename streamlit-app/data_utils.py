@@ -226,18 +226,32 @@ def filter_by_view(df: pd.DataFrame, ss: dict) -> pd.DataFrame:
 
 
 def update_deals(edited_df: pd.DataFrame, ss_state: dict):
+    # 저장 직전 캐시 초기화 후 최신 데이터 재조회 (동시 편집 데이터 유실 방지)
+    load_deals.clear()
     full = load_deals()
-    level = ss_state.get("view_level")
-    if level == "all":
-        mask = pd.Series([True] * len(full), index=full.index)
-    elif level == "division":
-        mask = full["본부"] == ss_state.get("selected_division")
-    else:
-        mask = full["부서"] == ss_state.get("selected_department")
 
-    keep = full[~mask]
     save_cols = [c for c in DEAL_COLUMNS if c in edited_df.columns]
-    result = pd.concat([keep, edited_df[save_cols]], ignore_index=True)
+
+    # deal_id + 트랜치번호 기준으로 편집된 행 매핑
+    edited_map = {
+        (str(r["deal_id"]), str(r["트랜치번호"])): r[save_cols]
+        for _, r in edited_df.iterrows()
+    }
+
+    # 최신 전체 데이터를 기준으로 행 단위 병합
+    # → 내 범위 행은 편집 내용으로 교체, 타인이 그 사이 추가/수정한 행은 그대로 유지
+    merged = []
+    for _, row in full.iterrows():
+        key = (str(row["deal_id"]), str(row["트랜치번호"]))
+        if key in edited_map:
+            updated = row.copy()
+            for col in save_cols:
+                updated[col] = edited_map[key][col]
+            merged.append(updated)
+        else:
+            merged.append(row)
+
+    result = pd.DataFrame(merged).reindex(columns=DEAL_COLUMNS) if merged else pd.DataFrame(columns=DEAL_COLUMNS)
 
     ws = _get_or_create_ws("deals", DEAL_COLUMNS)
     ws.clear()
