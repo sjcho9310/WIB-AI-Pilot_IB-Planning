@@ -50,9 +50,11 @@ def render_org_select():
 
     if step == "top":
         st.subheader("이름과 사번을 입력하세요")
-        이름 = st.text_input("이름")
-        사번 = st.text_input("사번")
-        if st.button("로그인", type="primary"):
+        with st.form("login_form"):
+            이름 = st.text_input("이름")
+            사번 = st.text_input("사번")
+            submitted = st.form_submit_button("로그인", type="primary")
+        if submitted:
             if not 이름.strip() or not 사번.strip():
                 st.error("이름과 사번을 모두 입력하세요.")
             else:
@@ -60,7 +62,6 @@ def render_org_select():
                 if info is None:
                     st.error("등록된 사용자가 아닙니다. 관리자에게 문의하세요.")
                 else:
-                    # 이전 세션 값 초기화
                     for k in ["role", "view_level", "selected_division", "selected_department"]:
                         st.session_state.pop(k, None)
                     st.session_state.user_name = 이름.strip()
