@@ -450,6 +450,8 @@ def render_deal_list():
         ["최초작성일", "deal_id", "트랜치번호"], ascending=[False, True, True]
     ).reset_index(drop=True)
 
+    df["삭제"] = False
+
     if "기표예정일" in df.columns:
         df["기표예정일"] = pd.to_datetime(df["기표예정일"], errors="coerce").dt.date
 
@@ -460,6 +462,7 @@ def render_deal_list():
             )
 
     column_order = [c for c in [
+        "삭제",
         "최초작성일", "입력일", "부서", "진행단계", "딜명", "투자구조", "트랜치",
         "사업유형", "상품유형", "투자유형",
         "전체딜규모", "당사주선/투자 트랜치", "당사주선/인수규모", "리소스Book유형", "당사투자금액", "투자기간만기",
@@ -471,6 +474,7 @@ def render_deal_list():
     ] if c in df.columns]
 
     col_config = {
+        "삭제":                 st.column_config.CheckboxColumn("🗑️ 삭제", default=False),
         "deal_id":              None,
         "부문":                 None,
         "입력일":               st.column_config.TextColumn("마지막수정일", disabled=True),
@@ -513,6 +517,13 @@ def render_deal_list():
         num_rows="fixed",
         key="dl_editor",
     )
+
+    # 삭제 예정 딜 경고
+    if "삭제" in edited.columns:
+        to_delete = edited[edited["삭제"] == True]
+        if not to_delete.empty:
+            names = ", ".join(to_delete["딜명"].dropna().unique())
+            st.error(f"🗑️ 삭제 예정: **{names}** — 저장 버튼을 누르면 해당 딜의 모든 트랜치가 영구 삭제됩니다.")
 
     if st.button("💾 변경사항 저장", type="primary"):
         save_df = edited.drop(
