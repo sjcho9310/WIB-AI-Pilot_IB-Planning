@@ -100,17 +100,7 @@ def render_org_select():
 def render_home():
     render_nav_buttons("org_select")
     role = st.session_state.role
-    dept = st.session_state.selected_department or ""
-    div  = st.session_state.selected_division or ""
-    view = st.session_state.view_level
-    if view == "all":
-        scope = "IB부문 통합"
-    elif view == "division":
-        scope = f"{div} 본부"
-    elif view == "department":
-        scope = dept
-    else:
-        scope = "IB부문 전체"
+    scope = du.get_scope_label(st.session_state)
     st.title(f"IB 영업현황 관리 — {scope}")
     st.markdown("---")
 
@@ -570,16 +560,7 @@ def render_stats():
     render_nav_buttons("home")
 
     ss = st.session_state
-    _dept = ss.get("selected_department") or ""
-    _div  = ss.get("selected_division") or ""
-    if ss.get("view_level") == "all":
-        _scope = "IB부문 통합"
-    elif _dept:
-        _scope = _dept
-    elif _div:
-        _scope = _div
-    else:
-        _scope = "IB부문 전체"
+    _scope = du.get_scope_label(ss)
     st.title(f"{_scope} 영업통계")
     df = du.load_deals()
     if df.empty:
